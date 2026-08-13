@@ -1,0 +1,327 @@
+# Detection rules.
+#
+# Rules are data, not code: adding a detection should be a pull request against
+# this file, reviewable by someone who does not read Python. The engine that
+# evaluates them lives in pipeline/detection/rules.py.
+#
+# ---------------------------------------------------------------------------
+# Schema
+# ---------------------------------------------------------------------------
+#   id            unique slug; also the dedupe namespace. Never reuse one.
+#   name          human-readable title shown in the dashboard
+#   severity      info | low | medium | high | critical
+#   type          threshold | distinct | match | ratio
+#   enabled       default true
+#   window_minutes  how far back to look
+#   group_by      field to aggregate on (src_ip, session_id, username, ...)
+#   threshold     numeric trigger, meaning depends on type:
+#                   threshold -> event count
+#                   distinct  -> number of distinct `distinct_field` values
+#                   ratio     -> minimum ratio (needs `numerator_where`)
+#   distinct_field  field to count distinct values of (type: distinct)
+#   where         all conditions must hold. Supported forms:
+#                   field: value            equality
+#                   field: [a, b]           membership
+#                   field__contains: text   case-insensitive substring
+#                   field__in_tags: tag     tag present in the event's tag list
+#                   field__gte / __lte      numeric comparison
+#                   field__isnull: true/false
+#   mitre         ATT&CK technique IDs, for reporting
+#   description   what fired and why it matters — this is what the analyst reads
+#
+# A rule with no `where` matches every event in the window.
+# ---------------------------------------------------------------------------
+
+rules:
+  # ------------------------------------------------------------------ #
+  # Credential attacks
+  # ------------------------------------------------------------------ #
+
+  - id: ssh_bruteforce
+    name: SSH brute-force
+    severity: high
+    type: threshold
+    window_minutes: 10
+    group_by: src_ip
+    threshold: 20
+    where:
+      service: ssh
+      event_type: auth_attempt
+    mitre: [T1110.001]
+    description: >
+      More than 20 SSH authentication attempts from a single source in 10
+      minutes. Sustained password guessing against the SSH service.
+
+  - id: telnet_bruteforce
+    name: Telnet brute-force
+    severity: high
+    type: threshold
+    window_minutes: 10
+    group_by: src_ip
+    threshold: 15
+    where:
+      service: telnet
+      event_type: auth_attempt
+    mitre: [T1110.001]
+    description: >
+      Sustained telnet login guessing. On port 23 this is nearly always an IoT
+      botnet loader rather than a human.
+
+  - id: credential_stuffing
+    name: Credential stuffing (many distinct usernames)
+    severity: high
+    type: distinct
+    window_minutes: 30
+    group_by: src_ip
+    distinct_field: username
+    threshold: 15
+    where:
+      event_type: auth_attempt
+    mitre: [T1110.004]
+    description: >
+      One source tried 15+ distinct usernames in 30 minutes. Distinguishes a
+      list-driven credential attack from repeated guessing at one account.
+
+  - id: password_spray
+    name: Password spraying (one password, many accounts)
+    severity: high
+    type: distinct
+    window_minutes: 60
+    group_by: password
+    distinct_field: username
+    threshold: 10
+    where:
+      event_type: auth_attempt
+    mitre: [T1110.003]
+    description: >
+      A single password tried against 10+ usernames. Sprays stay under
+      per-account lockout thresholds, so per-account counters miss them.
+
+  - id: iot_default_credentials
+    name: IoT default credentials used
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: iot-default-credential
+    mitre: [T1078.001]
+    description: >
+      A credential pair from the hardcoded Mirai-family list was submitted.
+      Strong indicator the client is a botnet loader, not a generic scanner.
+
+  # ------------------------------------------------------------------ #
+  # Post-exploitation
+  # ------------------------------------------------------------------ #
+
+  - id: shell_access_granted
+    name: Interactive shell obtained
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: session_id
+    where:
+      event_type: auth_success
+    mitre: [T1078]
+    description: >
+      An attacker reached the emulated shell. Every command in this session is
+      worth reading in full — this is the highest-value data the sensor produces.
+
+  - id: payload_download_attempt
+    name: Second-stage payload fetch
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: payload-fetch
+    mitre: [T1105]
+    description: >
+      The attacker ran wget/curl/tftp inside the emulated shell. The requested
+      URL is recorded in the event and is the location of the next-stage
+      payload. The sensor never fetches it.
+
+  - id: mirai_signature
+    name: Mirai-family command signature
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: mirai-signature
+    mitre: [T1059.004]
+    description: >
+      Commands matching the Mirai/Gafgyt lineage (busybox probes, /proc/mounts
+      enumeration) were executed post-login.
+
+  - id: sensitive_file_access
+    name: Credential file access attempt
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      event_type: command
+      command__contains: /etc/shadow
+    mitre: [T1003.008]
+    description: Attempted to read the shadow password file.
+
+  # ------------------------------------------------------------------ #
+  # Web attacks
+  # ------------------------------------------------------------------ #
+
+  - id: web_path_scan
+    name: Web path enumeration
+    severity: medium
+    type: distinct
+    window_minutes: 10
+    group_by: src_ip
+    distinct_field: path
+    threshold: 30
+    where:
+      service: http
+    mitre: [T1595.003]
+    description: >
+      30+ distinct URL paths requested in 10 minutes — directory brute-forcing
+      or a vulnerability scanner working through a wordlist.
+
+  - id: log4shell_attempt
+    name: Log4Shell (JNDI) exploitation attempt
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: log4shell
+    mitre: [T1190]
+    description: >
+      A JNDI lookup string was submitted in a URL, body or header (CVE-2021-44228).
+      The callback host in the payload identifies the operator's infrastructure.
+
+  - id: shellshock_attempt
+    name: Shellshock exploitation attempt
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: shellshock
+    mitre: [T1190]
+    description: A CVE-2014-6271 function-definition payload was sent in a header.
+
+  - id: sql_injection
+    name: SQL injection attempt
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: sql-injection
+    mitre: [T1190]
+    description: Request contained SQL injection syntax.
+
+  - id: path_traversal
+    name: Path traversal attempt
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: path-traversal
+    mitre: [T1083]
+    description: Request contained directory traversal sequences.
+
+  - id: secret_file_probe
+    name: Exposed secret file probe
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: env-file-probe
+    mitre: [T1552.001]
+    description: >
+      Probed for .env, .git or .ssh contents — hunting for credentials
+      accidentally published in a web root.
+
+  - id: webshell_upload
+    name: Webshell upload attempt
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: webshell-upload
+    mitre: [T1505.003]
+    description: Attempted to place a server-side script in a writable path.
+
+  # ------------------------------------------------------------------ #
+  # Reconnaissance and behaviour
+  # ------------------------------------------------------------------ #
+
+  - id: multi_service_sweep
+    name: Multi-service sweep
+    severity: medium
+    type: distinct
+    window_minutes: 15
+    group_by: src_ip
+    distinct_field: service
+    threshold: 3
+    mitre: [T1046]
+    description: >
+      One source touched three or more different services in 15 minutes —
+      host-level reconnaissance rather than a single-protocol campaign.
+
+  - id: ftp_bounce
+    name: FTP bounce attempt
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: ftp-bounce-attempt
+    mitre: [T1090]
+    description: >
+      Sent an FTP PORT command to redirect a data connection to a third-party
+      address, using the server as a scanning proxy. Always refused.
+
+  - id: high_volume_source
+    name: High-volume source
+    severity: medium
+    type: threshold
+    window_minutes: 5
+    group_by: src_ip
+    threshold: 300
+    mitre: [T1499]
+    description: >
+      300+ events from one source in 5 minutes. Usually an aggressive scanner;
+      occasionally an attempt to bury a targeted action in noise.
+
+  - id: high_threat_score_source
+    name: High enrichment threat score
+    severity: medium
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      threat_score__gte: 40
+    description: >
+      Enrichment scored this source at 40+. The score is the sum of every
+      available signal — a threat-intel indicator match, a malware or scanner
+      user-agent, a generic username — so read the event's threat_tags to see
+      which. This is a triage hint, not an attribution: a scanner user-agent
+      alone can reach this threshold, and several belong to legitimate research
+      projects.
+
+  - id: unusual_http_method
+    name: Unusual HTTP method
+    severity: medium
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: unusual-method
+    mitre: [T1190]
+    description: >
+      A method outside the common set was used — often a probe for WebDAV or a
+      misconfigured proxy.

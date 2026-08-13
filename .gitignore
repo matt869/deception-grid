@@ -1,0 +1,62 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Node / dashboard ---
+node_modules/
+dashboard/dist/
+dashboard/.vite/
+*.local
+
+# --- Captured / generated data (never commit observations) ---
+# The database and payload captures can contain real attacker-submitted
+# credentials and binaries. They must not go into version control.
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.jsonl
+data/payloads/
+data/ssh_host_rsa_key
+data/ssh_host_rsa_key.pub
+data/events.jsonl
+
+# GeoIP databases are licensed and not redistributable — keep them local.
+data/geolite2/*.mmdb
+
+# Local threat-intel indicator files may contain sensitive sourcing.
+data/indicators/*.txt
+
+# --- Reports / exports ---
+reports/
+exports/
+*.stix.json
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- keep empty data dirs ---
+!data/geolite2/.gitkeep
+!data/public_logs/.gitkeep
+!data/wordlists/.gitkeep

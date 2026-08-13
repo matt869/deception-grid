@@ -1,0 +1,51 @@
+# Web path enumeration.
+#
+# Walks a wordlist of interesting paths, the way a directory brute-forcer or a
+# vulnerability scanner does. Exercises: the HTTP parser, bait-path responses,
+# the env-file / admin probe tags, and the web_path_scan detection rule
+# (30 distinct paths in 10 minutes).
+
+name: web_path_scan
+service: http
+description: Directory/vulnerability scan across a path wordlist
+rate_per_second: 25
+count: 40
+method: GET
+user_agent: "Mozilla/5.0 (compatible; Nuclei - Open-source project)"
+
+paths:
+  - /
+  - /robots.txt
+  - /admin
+  - /admin/
+  - /admin/login.php
+  - /administrator/
+  - /wp-login.php
+  - /wp-admin/
+  - /phpmyadmin/
+  - /pma/
+  - /.env
+  - /.git/config
+  - /.git/HEAD
+  - /.aws/credentials
+  - /config.php
+  - /configuration.php
+  - /backup.sql
+  - /db.sql
+  - /server-status
+  - /server-info
+  - /actuator/env
+  - /actuator/health
+  - /api/v1/users
+  - /solr/admin/cores
+  - /manager/html
+  - /console
+  - /jenkins/script
+  - /cgi-bin/test.cgi
+  - /shell.php
+  - /xmlrpc.php
+  - /vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php
+  - /owa/auth/logon.aspx
+  - /telescope/requests
+  - /_ignition/execute-solution
+  - /boaform/admin/formLogin

