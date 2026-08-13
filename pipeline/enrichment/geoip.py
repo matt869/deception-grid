@@ -25,7 +25,7 @@ import ipaddress
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger("pipeline.geoip")
 
@@ -183,7 +183,9 @@ def synthetic_geo(ip: str) -> dict[str, Any]:
     across reloads. ``geo_source`` is always ``"synthetic"``.
     """
     digest = hashlib.sha256(ip.encode()).digest()
-    country, country_name, city, lat, lon = SYNTHETIC_LOCATIONS[digest[0] % len(SYNTHETIC_LOCATIONS)]
+    country, country_name, city, lat, lon = SYNTHETIC_LOCATIONS[
+        digest[0] % len(SYNTHETIC_LOCATIONS)
+    ]
     # Scatter within roughly a degree so points do not stack perfectly.
     jitter_lat = ((digest[1] / 255) - 0.5) * 1.6
     jitter_lon = ((digest[2] / 255) - 0.5) * 1.6

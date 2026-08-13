@@ -7,10 +7,7 @@ honest and the sensor quiet.
 
 from __future__ import annotations
 
-import pytest
-
 from pipeline.enrichment import asn, geoip, threat_intel
-
 
 # --------------------------------------------------------------------------- #
 # GeoIP
@@ -127,9 +124,7 @@ class TestThreatIntel:
         assert threat_intel.check_ip("192.0.2.99")["ti_score"] == 0.0
 
     def test_enrich_combines_signals(self):
-        result = threat_intel.enrich(
-            "192.0.2.1", user_agent="masscan/1.3", username="admin"
-        )
+        result = threat_intel.enrich("192.0.2.1", user_agent="masscan/1.3", username="admin")
         assert result["threat_score"] > 0
         assert "scanner:masscan" in result["threat_tags"]
 

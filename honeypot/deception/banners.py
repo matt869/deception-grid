@@ -30,7 +30,7 @@ class Persona:
     distro_pretty: str
 
     # -- per-service banners ------------------------------------------------
-    ssh_version: str          # the SSH-2.0-... protocol string
+    ssh_version: str  # the SSH-2.0-... protocol string
     telnet_greeting: str
     ftp_banner: str
     http_server: str
@@ -164,7 +164,11 @@ def list_personas() -> list[dict[str, str]]:
 # --------------------------------------------------------------------------- #
 
 _FAKE_LAST_IPS = (
-    "10.0.4.17", "192.168.1.42", "172.16.8.9", "10.20.30.11", "192.168.0.104",
+    "10.0.4.17",
+    "192.168.1.42",
+    "172.16.8.9",
+    "10.20.30.11",
+    "192.168.0.104",
 )
 
 

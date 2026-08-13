@@ -21,7 +21,7 @@ import datetime as dt
 import posixpath
 import random
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from honeypot.deception.banners import Persona
 
@@ -30,8 +30,24 @@ from honeypot.deception.banners import Persona
 # --------------------------------------------------------------------------- #
 
 FAKE_FS: dict[str, list[str]] = {
-    "/": ["bin", "boot", "dev", "etc", "home", "lib", "opt", "proc", "root",
-          "run", "sbin", "srv", "sys", "tmp", "usr", "var"],
+    "/": [
+        "bin",
+        "boot",
+        "dev",
+        "etc",
+        "home",
+        "lib",
+        "opt",
+        "proc",
+        "root",
+        "run",
+        "sbin",
+        "srv",
+        "sys",
+        "tmp",
+        "usr",
+        "var",
+    ],
     "/root": [".bashrc", ".profile", ".ssh", "backup.tar.gz", "notes.txt"],
     "/root/.ssh": ["authorized_keys", "known_hosts"],
     "/home": ["ubuntu", "deploy"],
@@ -41,8 +57,18 @@ FAKE_FS: dict[str, list[str]] = {
     "/var/www": ["html"],
     "/var/www/html": ["index.html", "config.php", "uploads"],
     "/var/log": ["auth.log", "syslog", "apache2", "dpkg.log"],
-    "/etc": ["passwd", "shadow", "hosts", "hostname", "resolv.conf", "ssh",
-             "crontab", "os-release", "network", "apache2"],
+    "/etc": [
+        "passwd",
+        "shadow",
+        "hosts",
+        "hostname",
+        "resolv.conf",
+        "ssh",
+        "crontab",
+        "os-release",
+        "network",
+        "apache2",
+    ],
 }
 
 FAKE_FILES: dict[str, str] = {
@@ -229,10 +255,7 @@ def _cmd_whoami(sh: FakeShell, args: list[str]) -> str:
 def _cmd_id(sh: FakeShell, args: list[str]) -> str:
     if sh.username == "root":
         return "uid=0(root) gid=0(root) groups=0(root)"
-    return (
-        f"uid=1000({sh.username}) gid=1000({sh.username}) "
-        f"groups=1000({sh.username}),27(sudo)"
-    )
+    return f"uid=1000({sh.username}) gid=1000({sh.username}) groups=1000({sh.username}),27(sudo)"
 
 
 def _cmd_pwd(sh: FakeShell, args: list[str]) -> str:
@@ -350,26 +373,46 @@ def _cmd_exit(sh: FakeShell, args: list[str]) -> str:
 
 
 _HANDLERS: dict[str, Callable[[FakeShell, list[str]], str]] = {
-    "ls": _cmd_ls, "dir": _cmd_ls,
+    "ls": _cmd_ls,
+    "dir": _cmd_ls,
     "cd": _cmd_cd,
-    "cat": _cmd_cat, "head": _cmd_cat, "tail": _cmd_cat, "more": _cmd_cat, "less": _cmd_cat,
+    "cat": _cmd_cat,
+    "head": _cmd_cat,
+    "tail": _cmd_cat,
+    "more": _cmd_cat,
+    "less": _cmd_cat,
     "uname": _cmd_uname,
     "whoami": _cmd_whoami,
     "id": _cmd_id,
     "pwd": _cmd_pwd,
-    "ps": _cmd_ps, "top": _cmd_ps,
+    "ps": _cmd_ps,
+    "top": _cmd_ps,
     "free": _cmd_free,
     "df": _cmd_df,
-    "ifconfig": _cmd_ifconfig, "ip": _cmd_ifconfig,
-    "netstat": _cmd_netstat, "ss": _cmd_netstat,
-    "wget": _cmd_download, "curl": _cmd_download, "tftp": _cmd_download,
+    "ifconfig": _cmd_ifconfig,
+    "ip": _cmd_ifconfig,
+    "netstat": _cmd_netstat,
+    "ss": _cmd_netstat,
+    "wget": _cmd_download,
+    "curl": _cmd_download,
+    "tftp": _cmd_download,
     "echo": _cmd_echo,
-    "rm": _cmd_rm, "mkdir": _cmd_noop, "touch": _cmd_noop, "chmod": _cmd_noop,
-    "chown": _cmd_noop, "kill": _cmd_noop, "killall": _cmd_noop, "export": _cmd_noop,
+    "rm": _cmd_rm,
+    "mkdir": _cmd_noop,
+    "touch": _cmd_noop,
+    "chmod": _cmd_noop,
+    "chown": _cmd_noop,
+    "kill": _cmd_noop,
+    "killall": _cmd_noop,
+    "export": _cmd_noop,
     "history": _cmd_history,
     "crontab": _cmd_crontab,
-    "w": _cmd_w, "who": _cmd_w, "last": _cmd_w,
-    "exit": _cmd_exit, "logout": _cmd_exit, "quit": _cmd_exit,
+    "w": _cmd_w,
+    "who": _cmd_w,
+    "last": _cmd_w,
+    "exit": _cmd_exit,
+    "logout": _cmd_exit,
+    "quit": _cmd_exit,
 }
 
 
@@ -423,15 +466,23 @@ BAIT_PATHS: dict[str, tuple[int, str, str]] = {
     "/login": (200, "text/html", LOGIN_PAGE),
     "/wp-login.php": (200, "text/html", LOGIN_PAGE),
     "/phpmyadmin/": (200, "text/html", LOGIN_PAGE),
-    "/.env": (200, "text/plain",
-              "APP_ENV=production\nAPP_DEBUG=false\nDB_HOST=127.0.0.1\n"
-              "DB_DATABASE=app\nDB_USERNAME=app\nDB_PASSWORD=REDACTED\n"),
-    "/.git/config": (200, "text/plain",
-                     "[core]\n\trepositoryformatversion = 0\n[remote \"origin\"]\n"
-                     "\turl = git@internal.invalid:ops/site.git\n"),
-    "/server-status": (403, "text/html",
-                       "<html><head><title>403 Forbidden</title></head>"
-                       "<body><h1>Forbidden</h1></body></html>"),
+    "/.env": (
+        200,
+        "text/plain",
+        "APP_ENV=production\nAPP_DEBUG=false\nDB_HOST=127.0.0.1\n"
+        "DB_DATABASE=app\nDB_USERNAME=app\nDB_PASSWORD=REDACTED\n",
+    ),
+    "/.git/config": (
+        200,
+        "text/plain",
+        '[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n'
+        "\turl = git@internal.invalid:ops/site.git\n",
+    ),
+    "/server-status": (
+        403,
+        "text/html",
+        "<html><head><title>403 Forbidden</title></head><body><h1>Forbidden</h1></body></html>",
+    ),
 }
 
 

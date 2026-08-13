@@ -27,8 +27,9 @@ import io
 import json
 import sys
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any
 
 from sqlalchemy import select
 
@@ -36,11 +37,29 @@ from storage.db import session_scope
 from storage.models import Alert, Attacker, Event, ensure_utc, utcnow
 
 EVENT_CSV_COLUMNS = [
-    "event_id", "ts", "sensor", "service", "event_type", "severity",
-    "src_ip", "src_port", "dst_port", "username", "password", "command",
-    "http_method", "path", "user_agent", "status_code",
-    "country", "country_name", "city", "asn", "as_org",
-    "threat_score", "session_id",
+    "event_id",
+    "ts",
+    "sensor",
+    "service",
+    "event_type",
+    "severity",
+    "src_ip",
+    "src_port",
+    "dst_port",
+    "username",
+    "password",
+    "command",
+    "http_method",
+    "path",
+    "user_agent",
+    "status_code",
+    "country",
+    "country_name",
+    "city",
+    "asn",
+    "as_org",
+    "threat_score",
+    "session_id",
 ]
 
 
@@ -49,7 +68,7 @@ EVENT_CSV_COLUMNS = [
 # --------------------------------------------------------------------------- #
 
 
-def export_events_csv(db, since_hours: Optional[float] = None, limit: int = 100_000) -> str:
+def export_events_csv(db, since_hours: float | None = None, limit: int = 100_000) -> str:
     stmt = select(Event).order_by(Event.ts)
     if since_hours is not None:
         stmt = stmt.where(Event.ts >= utcnow() - dt.timedelta(hours=since_hours))
@@ -65,7 +84,7 @@ def export_events_csv(db, since_hours: Optional[float] = None, limit: int = 100_
     return buffer.getvalue()
 
 
-def export_events_jsonl(db, since_hours: Optional[float] = None, limit: int = 100_000) -> str:
+def export_events_jsonl(db, since_hours: float | None = None, limit: int = 100_000) -> str:
     stmt = select(Event).order_by(Event.ts)
     if since_hours is not None:
         stmt = stmt.where(Event.ts >= utcnow() - dt.timedelta(hours=since_hours))
@@ -73,9 +92,7 @@ def export_events_jsonl(db, since_hours: Optional[float] = None, limit: int = 10
 
     lines: list[str] = []
     for event in db.execute(stmt).scalars():
-        record = {
-            column.name: getattr(event, column.name) for column in Event.__table__.columns
-        }
+        record = {column.name: getattr(event, column.name) for column in Event.__table__.columns}
         record["ts"] = ensure_utc(event.ts).isoformat()
         record.pop("id", None)
         lines.append(json.dumps(record, default=str))
@@ -88,7 +105,7 @@ def export_events_jsonl(db, since_hours: Optional[float] = None, limit: int = 10
 
 
 def select_indicators(
-    db, min_score: float = 50.0, since_hours: Optional[float] = 24 * 7, limit: int = 5000
+    db, min_score: float = 50.0, since_hours: float | None = 24 * 7, limit: int = 5000
 ) -> list[Attacker]:
     """Attackers meeting the export bar. See the module docstring."""
     stmt = (
@@ -205,13 +222,24 @@ def export_misp(attackers: Sequence[Attacker], sensor: str = "honeypot") -> str:
     )
 
 
-def export_alerts_csv(db, since_hours: Optional[float] = None) -> str:
+def export_alerts_csv(db, since_hours: float | None = None) -> str:
     stmt = select(Alert).order_by(Alert.last_seen.desc())
     if since_hours is not None:
         stmt = stmt.where(Alert.last_seen >= utcnow() - dt.timedelta(hours=since_hours))
 
-    columns = ["alert_id", "rule_id", "rule_name", "severity", "src_ip", "service",
-               "title", "hit_count", "status", "first_seen", "last_seen"]
+    columns = [
+        "alert_id",
+        "rule_id",
+        "rule_name",
+        "severity",
+        "src_ip",
+        "service",
+        "title",
+        "hit_count",
+        "status",
+        "first_seen",
+        "last_seen",
+    ]
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
@@ -228,7 +256,13 @@ def export_alerts_csv(db, since_hours: Optional[float] = None) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
+    # Org names and payloads carry non-ASCII; a legacy Windows console code page
+    # would otherwise crash on stdout. Files are already written as UTF-8.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover
+        pass
     parser = argparse.ArgumentParser(description="Export honeypot data")
     parser.add_argument(
         "--format",
@@ -238,7 +272,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--out", help="output file (default: stdout)")
     parser.add_argument("--hours", type=float, help="only include the last N hours")
     parser.add_argument(
-        "--min-score", type=float, default=50.0,
+        "--min-score",
+        type=float,
+        default=50.0,
         help="score floor for indicator formats (default 50)",
     )
     parser.add_argument("--sensor", default="honeypot", help="sensor name for STIX/MISP")

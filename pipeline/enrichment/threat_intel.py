@@ -31,7 +31,7 @@ import logging
 import re
 import threading
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 log = logging.getLogger("pipeline.threat_intel")
 
@@ -46,8 +46,8 @@ SCORE_SCANNER_UA = 15.0
 SCORE_MALWARE_UA = 30.0
 
 _lock = threading.Lock()
-_ip_index: Optional[dict[str, set[str]]] = None
-_cidr_index: Optional[list[tuple[Any, str]]] = None
+_ip_index: dict[str, set[str]] | None = None
+_cidr_index: list[tuple[Any, str]] | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -111,12 +111,32 @@ def _needle_pattern(needle: str) -> re.Pattern[str]:
 def _matches_needle(haystack: str, needle: str) -> bool:
     return _needle_pattern(needle).search(haystack) is not None
 
+
 # Username patterns typical of automated credential stuffing rather than a
 # targeted attempt against a known account.
 GENERIC_USERNAMES = {
-    "root", "admin", "administrator", "user", "test", "guest", "oracle",
-    "ubuntu", "postgres", "mysql", "ftp", "www", "web", "support", "pi",
-    "default", "operator", "service", "backup", "deploy", "git", "jenkins",
+    "root",
+    "admin",
+    "administrator",
+    "user",
+    "test",
+    "guest",
+    "oracle",
+    "ubuntu",
+    "postgres",
+    "mysql",
+    "ftp",
+    "www",
+    "web",
+    "support",
+    "pi",
+    "default",
+    "operator",
+    "service",
+    "backup",
+    "deploy",
+    "git",
+    "jenkins",
 }
 
 
@@ -152,9 +172,7 @@ def _load_indices() -> tuple[dict[str, set[str]], list[tuple[Any, str]]]:
             from storage.models import Indicator
 
             with session_scope() as db:
-                rows = db.execute(
-                    select(Indicator).where(Indicator.enabled.is_(True))
-                ).scalars()
+                rows = db.execute(select(Indicator).where(Indicator.enabled.is_(True))).scalars()
                 for row in rows:
                     if row.kind in ("ip", "cidr"):
                         _index_value(row.value, f"ti:{row.source}", ip_index, cidr_index)
@@ -234,7 +252,10 @@ def refresh_from_file(path: Path, source: str, category: str = "generic") -> int
 
             db.add(
                 Indicator(
-                    kind=kind, value=value, source=source, category=category,
+                    kind=kind,
+                    value=value,
+                    source=source,
+                    category=category,
                     score=SCORE_EXACT_IP if kind == "ip" else SCORE_CIDR,
                 )
             )
@@ -276,7 +297,7 @@ def check_ip(ip: str) -> dict[str, Any]:
     return {"ti_score": score, "ti_tags": tags}
 
 
-def check_user_agent(user_agent: Optional[str]) -> dict[str, Any]:
+def check_user_agent(user_agent: str | None) -> dict[str, Any]:
     """Classify a user-agent string using built-in heuristics."""
     if not user_agent:
         return {"ti_score": 0.0, "ti_tags": []}
@@ -304,7 +325,7 @@ def check_user_agent(user_agent: Optional[str]) -> dict[str, Any]:
     return {"ti_score": score, "ti_tags": tags}
 
 
-def check_username(username: Optional[str]) -> dict[str, Any]:
+def check_username(username: str | None) -> dict[str, Any]:
     """Flag generic vs. targeted usernames."""
     if not username:
         return {"ti_score": 0.0, "ti_tags": []}
@@ -315,8 +336,8 @@ def check_username(username: Optional[str]) -> dict[str, Any]:
 
 def enrich(
     ip: str,
-    user_agent: Optional[str] = None,
-    username: Optional[str] = None,
+    user_agent: str | None = None,
+    username: str | None = None,
 ) -> dict[str, Any]:
     """Combine every available signal into one score and tag list."""
     results = [check_ip(ip), check_user_agent(user_agent), check_username(username)]
@@ -336,8 +357,9 @@ def indicator_stats() -> dict[str, int]:
     return {
         "ip_indicators": len(ip_index),
         "cidr_indicators": len(cidr_index),
-        "sources": len({s for sources in ip_index.values() for s in sources}
-                       | {s for _, s in cidr_index}),
+        "sources": len(
+            {s for sources in ip_index.values() for s in sources} | {s for _, s in cidr_index}
+        ),
     }
 
 

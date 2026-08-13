@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter, defaultdict
-from typing import Any, Iterable, Optional, Sequence
+from collections.abc import Iterable
+from typing import Any
 
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session as OrmSession
@@ -44,13 +45,13 @@ BUCKETS: dict[str, dt.timedelta] = {
 
 def _floor(ts: dt.datetime, delta: dt.timedelta) -> dt.datetime:
     """Floor a timestamp to the nearest multiple of ``delta`` since the epoch."""
-    epoch = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+    epoch = dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
     ts = ensure_utc(ts)
     n = int((ts - epoch) / delta)
     return epoch + n * delta
 
 
-def _since(hours: float | None) -> Optional[dt.datetime]:
+def _since(hours: float | None) -> dt.datetime | None:
     if hours is None:
         return None
     return utcnow() - dt.timedelta(hours=hours)
@@ -66,15 +67,15 @@ def list_events(
     *,
     limit: int = 100,
     offset: int = 0,
-    service: Optional[str] = None,
-    event_type: Optional[str] = None,
-    src_ip: Optional[str] = None,
-    country: Optional[str] = None,
-    username: Optional[str] = None,
-    min_severity: Optional[str] = None,
-    session_id: Optional[str] = None,
-    search: Optional[str] = None,
-    since_hours: Optional[float] = None,
+    service: str | None = None,
+    event_type: str | None = None,
+    src_ip: str | None = None,
+    country: str | None = None,
+    username: str | None = None,
+    min_severity: str | None = None,
+    session_id: str | None = None,
+    search: str | None = None,
+    since_hours: float | None = None,
     order: str = "desc",
 ) -> tuple[list[Event], int]:
     """Return ``(events, total_matching)`` for the given filters."""
@@ -97,9 +98,7 @@ def list_events(
     if since_hours is not None:
         conditions.append(Event.ts >= _since(since_hours))
     if min_severity:
-        allowed = [
-            s.value for s in Severity if s.rank >= Severity(min_severity).rank
-        ]
+        allowed = [s.value for s in Severity if s.rank >= Severity(min_severity).rank]
         conditions.append(Event.severity.in_(allowed))
     if search:
         like = f"%{search}%"
@@ -120,7 +119,7 @@ def list_events(
     return list(db.execute(stmt).scalars()), int(total)
 
 
-def get_session_with_events(db: OrmSession, session_id: str) -> Optional[Session]:
+def get_session_with_events(db: OrmSession, session_id: str) -> Session | None:
     return db.get(Session, session_id)
 
 
@@ -129,7 +128,7 @@ def get_session_with_events(db: OrmSession, session_id: str) -> Optional[Session
 # --------------------------------------------------------------------------- #
 
 
-def summary_stats(db: OrmSession, since_hours: Optional[float] = 24) -> dict[str, Any]:
+def summary_stats(db: OrmSession, since_hours: float | None = 24) -> dict[str, Any]:
     """Headline counters for the overview page."""
     since = _since(since_hours)
 
@@ -155,8 +154,13 @@ def summary_stats(db: OrmSession, since_hours: Optional[float] = 24) -> dict[str
     ).scalar_one()
     unique_creds = db.execute(
         scoped(
-            select(func.count(distinct(func.coalesce(Event.username, "") + ":" + func.coalesce(Event.password, ""))))
-            .select_from(Event)
+            select(
+                func.count(
+                    distinct(
+                        func.coalesce(Event.username, "") + ":" + func.coalesce(Event.password, "")
+                    )
+                )
+            ).select_from(Event)
         ).where(Event.event_type == EventType.AUTH_ATTEMPT.value)
     ).scalar_one()
 
@@ -277,7 +281,7 @@ def _top(
     column,
     *,
     limit: int,
-    since_hours: Optional[float],
+    since_hours: float | None,
     where=None,
 ) -> list[dict[str, Any]]:
     stmt = (
@@ -296,27 +300,27 @@ def _top(
     return [{"value": v, "count": int(c)} for v, c in db.execute(stmt)]
 
 
-def top_usernames(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_usernames(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     return _top(db, Event.username, limit=limit, since_hours=since_hours)
 
 
-def top_passwords(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_passwords(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     return _top(db, Event.password, limit=limit, since_hours=since_hours)
 
 
-def top_paths(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_paths(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     return _top(db, Event.path, limit=limit, since_hours=since_hours)
 
 
-def top_user_agents(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_user_agents(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     return _top(db, Event.user_agent, limit=limit, since_hours=since_hours)
 
 
-def top_commands(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_commands(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     return _top(db, Event.command, limit=limit, since_hours=since_hours)
 
 
-def top_countries(db: OrmSession, limit: int = 50, since_hours: Optional[float] = 24):
+def top_countries(db: OrmSession, limit: int = 50, since_hours: float | None = 24):
     """Country counts with the attacker count alongside, for the world map."""
     since = _since(since_hours)
     stmt = (
@@ -339,7 +343,7 @@ def top_countries(db: OrmSession, limit: int = 50, since_hours: Optional[float] 
     ]
 
 
-def top_asns(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24):
+def top_asns(db: OrmSession, limit: int = 20, since_hours: float | None = 24):
     since = _since(since_hours)
     stmt = (
         select(
@@ -361,7 +365,7 @@ def top_asns(db: OrmSession, limit: int = 20, since_hours: Optional[float] = 24)
     ]
 
 
-def service_breakdown(db: OrmSession, since_hours: Optional[float] = 24):
+def service_breakdown(db: OrmSession, since_hours: float | None = 24):
     since = _since(since_hours)
     stmt = (
         select(
@@ -374,12 +378,10 @@ def service_breakdown(db: OrmSession, since_hours: Optional[float] = 24):
     )
     if since:
         stmt = stmt.where(Event.ts >= since)
-    return [
-        {"service": s, "events": int(e), "attackers": int(a)} for s, e, a in db.execute(stmt)
-    ]
+    return [{"service": s, "events": int(e), "attackers": int(a)} for s, e, a in db.execute(stmt)]
 
 
-def credential_pairs(db: OrmSession, limit: int = 100, since_hours: Optional[float] = 24):
+def credential_pairs(db: OrmSession, limit: int = 100, since_hours: float | None = 24):
     """Most-tried username/password combinations."""
     since = _since(since_hours)
     stmt = (
@@ -392,9 +394,7 @@ def credential_pairs(db: OrmSession, limit: int = 100, since_hours: Optional[flo
     )
     if since:
         stmt = stmt.where(Event.ts >= since)
-    return [
-        {"username": u, "password": p, "count": int(c)} for u, p, c in db.execute(stmt)
-    ]
+    return [{"username": u, "password": p, "count": int(c)} for u, p, c in db.execute(stmt)]
 
 
 # --------------------------------------------------------------------------- #
@@ -407,9 +407,9 @@ def list_attackers(
     *,
     limit: int = 50,
     offset: int = 0,
-    country: Optional[str] = None,
-    classification: Optional[str] = None,
-    min_score: Optional[float] = None,
+    country: str | None = None,
+    classification: str | None = None,
+    min_score: float | None = None,
     sort: str = "threat_score",
 ) -> tuple[list[Attacker], int]:
     stmt = select(Attacker)
@@ -439,7 +439,7 @@ def list_attackers(
     return list(db.execute(stmt).scalars()), int(total)
 
 
-def get_attacker(db: OrmSession, src_ip: str) -> Optional[Attacker]:
+def get_attacker(db: OrmSession, src_ip: str) -> Attacker | None:
     return db.get(Attacker, src_ip)
 
 
@@ -453,7 +453,7 @@ def attacker_sessions(db: OrmSession, src_ip: str, limit: int = 50) -> list[Sess
     return list(db.execute(stmt).scalars())
 
 
-def rebuild_attackers(db: OrmSession, src_ips: Optional[Iterable[str]] = None) -> int:
+def rebuild_attackers(db: OrmSession, src_ips: Iterable[str] | None = None) -> int:
     """Recompute the ``attackers`` aggregate from raw events.
 
     Pass ``src_ips`` to refresh only those rows (the incremental path used after
@@ -486,9 +486,7 @@ def rebuild_attackers(db: OrmSession, src_ips: Optional[Iterable[str]] = None) -
         row.last_seen = max(ensure_utc(e.ts) for e in events)
         row.event_count = len(events)
         row.session_count = len(session_ids)
-        row.auth_attempts = sum(
-            1 for e in events if e.event_type == EventType.AUTH_ATTEMPT.value
-        )
+        row.auth_attempts = sum(1 for e in events if e.event_type == EventType.AUTH_ATTEMPT.value)
         row.commands_run = sum(1 for e in events if e.event_type == EventType.COMMAND.value)
         row.distinct_usernames = len(usernames)
         row.distinct_passwords = len(passwords)
@@ -529,11 +527,11 @@ def list_alerts(
     *,
     limit: int = 100,
     offset: int = 0,
-    status: Optional[str] = None,
-    severity: Optional[str] = None,
-    rule_id: Optional[str] = None,
-    src_ip: Optional[str] = None,
-    since_hours: Optional[float] = None,
+    status: str | None = None,
+    severity: str | None = None,
+    rule_id: str | None = None,
+    src_ip: str | None = None,
+    since_hours: float | None = None,
 ) -> tuple[list[Alert], int]:
     stmt = select(Alert)
     count_stmt = select(func.count()).select_from(Alert)
@@ -560,8 +558,8 @@ def list_alerts(
 
 
 def set_alert_status(
-    db: OrmSession, alert_id: str, status: str, notes: Optional[str] = None
-) -> Optional[Alert]:
+    db: OrmSession, alert_id: str, status: str, notes: str | None = None
+) -> Alert | None:
     alert = db.execute(select(Alert).where(Alert.alert_id == alert_id)).scalar_one_or_none()
     if alert is None:
         return None
@@ -573,7 +571,7 @@ def set_alert_status(
     return alert
 
 
-def alert_counts_by_rule(db: OrmSession, since_hours: Optional[float] = 24):
+def alert_counts_by_rule(db: OrmSession, since_hours: float | None = 24):
     stmt = (
         select(Alert.rule_id, func.max(Alert.rule_name), func.sum(Alert.hit_count))
         .group_by(Alert.rule_id)
@@ -582,9 +580,7 @@ def alert_counts_by_rule(db: OrmSession, since_hours: Optional[float] = 24):
     since = _since(since_hours)
     if since:
         stmt = stmt.where(Alert.last_seen >= since)
-    return [
-        {"rule_id": r, "rule_name": n, "hits": int(h or 0)} for r, n, h in db.execute(stmt)
-    ]
+    return [{"rule_id": r, "rule_name": n, "hits": int(h or 0)} for r, n, h in db.execute(stmt)]
 
 
 __all__ = [

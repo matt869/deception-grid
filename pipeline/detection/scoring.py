@@ -15,9 +15,9 @@ connection attempts, because volume is cheap and access is not.
 
 from __future__ import annotations
 
-import datetime as dt
 import math
-from typing import Any, Iterable, Optional, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 from storage.models import Event, EventType, Severity, ensure_utc, utcnow
 
@@ -26,13 +26,13 @@ MAX_SCORE = 100.0
 # Component ceilings. These sum to more than MAX_SCORE on purpose — the total is
 # clamped, so a source can top out several different ways.
 WEIGHTS: dict[str, float] = {
-    "volume": 15.0,          # how many events
-    "persistence": 12.0,     # how long they stayed / came back
+    "volume": 15.0,  # how many events
+    "persistence": 12.0,  # how long they stayed / came back
     "credential_breadth": 18.0,  # how many distinct users/passwords tried
     "service_breadth": 8.0,  # how many protocols touched
-    "severity": 25.0,        # worst-case severity of what they sent
+    "severity": 25.0,  # worst-case severity of what they sent
     "post_exploitation": 30.0,  # shell access, commands, payload fetches
-    "threat_intel": 20.0,    # matched a configured indicator
+    "threat_intel": 20.0,  # matched a configured indicator
 }
 
 # Behavioural classes, checked in order — first match wins, so the most
@@ -58,7 +58,6 @@ def score_breakdown(attacker, events: Sequence[Event]) -> dict[str, float]:
     if not events:
         return {name: 0.0 for name in WEIGHTS}
 
-    now = utcnow()
     timestamps = [ensure_utc(e.ts) for e in events]
     span_hours = max((max(timestamps) - min(timestamps)).total_seconds() / 3600, 0.0)
 
@@ -98,14 +97,13 @@ def score_breakdown(attacker, events: Sequence[Event]) -> dict[str, float]:
     auth_success = sum(1 for e in events if e.event_type == EventType.AUTH_SUCCESS.value)
     commands = sum(1 for e in events if e.event_type == EventType.COMMAND.value)
     payload_fetch = sum(
-        1 for e in events if "payload-fetch" in (e.tags or []) or "second-stage-url" in (e.tags or [])
+        1
+        for e in events
+        if "payload-fetch" in (e.tags or []) or "second-stage-url" in (e.tags or [])
     )
     uploads = sum(1 for e in events if e.event_type == EventType.FILE_UPLOAD.value)
     post_exploitation = _clamp(
-        auth_success * 8.0
-        + math.log1p(commands) * 6.0
-        + payload_fetch * 10.0
-        + uploads * 6.0,
+        auth_success * 8.0 + math.log1p(commands) * 6.0 + payload_fetch * 10.0 + uploads * 6.0,
         WEIGHTS["post_exploitation"],
     )
 
@@ -153,8 +151,13 @@ def classify(attacker, events: Sequence[Event]) -> tuple[str, list[str]]:
         tags.append("from-vpn-or-tor")
 
     exploit_tags = {
-        "log4shell", "shellshock", "sql-injection", "path-traversal",
-        "command-injection", "webshell-upload", "env-file-probe",
+        "log4shell",
+        "shellshock",
+        "sql-injection",
+        "path-traversal",
+        "command-injection",
+        "webshell-upload",
+        "env-file-probe",
     }
     matched_exploits = sorted(all_tags & exploit_tags)
     tags.extend(matched_exploits)

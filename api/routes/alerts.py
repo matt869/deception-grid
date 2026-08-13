@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as OrmSession
 
-from api.schemas import AlertOut, AlertStatusUpdate, Message, Page, RuleOut
+from api.schemas import AlertOut, AlertStatusUpdate, Page, RuleOut
 from storage import queries
 from storage.db import get_db
 from storage.models import Severity
@@ -20,11 +18,11 @@ def list_alerts(
     db: OrmSession = Depends(get_db),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    status: Optional[str] = Query(None, description="new | acknowledged | closed"),
-    severity: Optional[str] = Query(None, description="minimum severity"),
-    rule_id: Optional[str] = Query(None),
-    src_ip: Optional[str] = Query(None),
-    since_hours: Optional[float] = Query(None, gt=0, le=24 * 365),
+    status: str | None = Query(None, description="new | acknowledged | closed"),
+    severity: str | None = Query(None, description="minimum severity"),
+    rule_id: str | None = Query(None),
+    src_ip: str | None = Query(None),
+    since_hours: float | None = Query(None, gt=0, le=24 * 365),
 ) -> Page[AlertOut]:
     if status and status not in ("new", "acknowledged", "closed"):
         raise HTTPException(400, f"unknown status {status!r}")
@@ -79,7 +77,7 @@ def list_rules() -> list[RuleOut]:
 @router.get("/by-rule", summary="Alert counts grouped by rule")
 def by_rule(
     db: OrmSession = Depends(get_db),
-    hours: Optional[float] = Query(24, gt=0, le=24 * 365),
+    hours: float | None = Query(24, gt=0, le=24 * 365),
 ) -> list[dict]:
     return queries.alert_counts_by_rule(db, since_hours=hours)
 

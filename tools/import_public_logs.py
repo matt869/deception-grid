@@ -33,8 +33,9 @@ import json
 import re
 import sys
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from pipeline.enrichment import enrich_event
 from storage.db import init_db, session_scope
@@ -61,7 +62,7 @@ COWRIE_EVENT_MAP = {
 def parse_cowrie(path: Path, sensor: str) -> Iterator[dict[str, Any]]:
     """Yield event dicts from a Cowrie JSON log (one JSON object per line)."""
     with path.open("r", encoding="utf-8", errors="replace") as handle:
-        for lineno, line in enumerate(handle, 1):
+        for line in handle:
             line = line.strip()
             if not line:
                 continue
@@ -129,7 +130,7 @@ def _cowrie_tags(record: dict[str, Any], eventid: str) -> list[str]:
 # --------------------------------------------------------------------------- #
 
 
-def parse_jsonl(path: Path, sensor: Optional[str]) -> Iterator[dict[str, Any]]:
+def parse_jsonl(path: Path, sensor: str | None) -> Iterator[dict[str, Any]]:
     columns = {column.name for column in Event.__table__.columns}
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for line in handle:
@@ -186,12 +187,15 @@ AUTH_PATTERNS = [
     ),
 ]
 
-MONTHS = {m: i for i, m in enumerate(
-    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1
-)}
+MONTHS = {
+    m: i
+    for i, m in enumerate(
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1
+    )
+}
 
 
-def parse_auth_log(path: Path, sensor: str, year: Optional[int] = None) -> Iterator[dict[str, Any]]:
+def parse_auth_log(path: Path, sensor: str, year: int | None = None) -> Iterator[dict[str, Any]]:
     """Parse sshd lines from a syslog-format auth.log.
 
     Syslog timestamps carry no year. We assume the file's modification-time year
@@ -213,8 +217,13 @@ def parse_auth_log(path: Path, sensor: str, year: Optional[int] = None) -> Itera
                 try:
                     hour, minute, second = (int(p) for p in fields["time"].split(":"))
                     ts = dt.datetime(
-                        default_year, MONTHS[fields["month"]], int(fields["day"]),
-                        hour, minute, second, tzinfo=dt.timezone.utc,
+                        default_year,
+                        MONTHS[fields["month"]],
+                        int(fields["day"]),
+                        hour,
+                        minute,
+                        second,
+                        tzinfo=dt.UTC,
                     )
                 except (ValueError, KeyError):
                     break
@@ -225,7 +234,9 @@ def parse_auth_log(path: Path, sensor: str, year: Optional[int] = None) -> Itera
                 session_ids.setdefault(src_ip, str(uuid.uuid4()))
 
                 event_type = (
-                    EventType.AUTH_SUCCESS if kind == "accepted_password" else EventType.AUTH_ATTEMPT
+                    EventType.AUTH_SUCCESS
+                    if kind == "accepted_password"
+                    else EventType.AUTH_ATTEMPT
                 )
                 severity = Severity.HIGH if kind == "accepted_password" else Severity.MEDIUM
 
@@ -252,22 +263,22 @@ def parse_auth_log(path: Path, sensor: str, year: Optional[int] = None) -> Itera
 # --------------------------------------------------------------------------- #
 
 
-def _parse_timestamp(value: Any) -> Optional[dt.datetime]:
+def _parse_timestamp(value: Any) -> dt.datetime | None:
     if value is None:
         return None
     if isinstance(value, dt.datetime):
-        return value if value.tzinfo else value.replace(tzinfo=dt.timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=dt.UTC)
     if isinstance(value, (int, float)):
-        return dt.datetime.fromtimestamp(value, tz=dt.timezone.utc)
+        return dt.datetime.fromtimestamp(value, tz=dt.UTC)
     text = str(value).strip().replace("Z", "+00:00")
     try:
         parsed = dt.datetime.fromisoformat(text)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
 
 
-def _int_or_none(value: Any) -> Optional[int]:
+def _int_or_none(value: Any) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -282,9 +293,7 @@ def create_missing_sessions(db, events: list[dict[str, Any]]) -> int:
     """
     from sqlalchemy import select
 
-    existing = {
-        row[0] for row in db.execute(select(Session.session_id))
-    }
+    existing = {row[0] for row in db.execute(select(Session.session_id))}
     grouped: dict[str, list[dict[str, Any]]] = {}
     for event in events:
         sid = event.get("session_id")
@@ -318,18 +327,23 @@ def create_missing_sessions(db, events: list[dict[str, Any]]) -> int:
     return len(grouped)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Import honeypot logs from another source")
     parser.add_argument("path", help="log file to import")
-    parser.add_argument(
-        "--format", choices=("cowrie", "jsonl", "auth-log"), required=True
-    )
+    parser.add_argument("--format", choices=("cowrie", "jsonl", "auth-log"), required=True)
     parser.add_argument("--sensor", help="sensor name to stamp (default: derived from filename)")
     parser.add_argument("--year", type=int, help="auth-log only: year for syslog timestamps")
     parser.add_argument("--limit", type=int, help="stop after N events")
     parser.add_argument("--no-enrich", action="store_true", help="skip geo/ASN/TI enrichment")
     parser.add_argument("--dry-run", action="store_true", help="parse and report, write nothing")
     args = parser.parse_args(argv)
+
+    # Source addresses and org names carry non-ASCII; keep stdout UTF-8 so a
+    # legacy Windows console code page does not crash the import at the summary.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover
+        pass
 
     path = Path(args.path)
     if not path.exists():
@@ -377,8 +391,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         for start in range(0, len(events), 1000):
             chunk = events[start : start + 1000]
             db.add_all(
-                Event(**{k: v for k, v in e.items() if k in
-                         {c.name for c in Event.__table__.columns}})
+                Event(
+                    **{k: v for k, v in e.items() if k in {c.name for c in Event.__table__.columns}}
+                )
                 for e in chunk
             )
             db.flush()

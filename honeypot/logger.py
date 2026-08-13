@@ -21,7 +21,7 @@ import queue
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from honeypot.config import Settings
 from storage.models import Event, Session, Severity, utcnow
@@ -41,7 +41,7 @@ class EventLogger:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._running = threading.Event()
         self._jsonl_handle = None
 
@@ -74,8 +74,11 @@ class EventLogger:
         self._running.set()
         self._thread = threading.Thread(target=self._run, name="event-writer", daemon=True)
         self._thread.start()
-        log.info("event writer started (db=%s jsonl=%s)", self.settings.write_to_db,
-                 self.settings.jsonl_path)
+        log.info(
+            "event writer started (db=%s jsonl=%s)",
+            self.settings.write_to_db,
+            self.settings.jsonl_path,
+        )
 
     def stop(self, timeout: float = 10.0) -> None:
         """Signal the writer to drain and exit."""
@@ -93,10 +96,12 @@ class EventLogger:
             self._jsonl_handle = None
         log.info(
             "event writer stopped (written=%d dropped=%d errors=%d)",
-            self.written, self.dropped, self.errors,
+            self.written,
+            self.dropped,
+            self.errors,
         )
 
-    def __enter__(self) -> "EventLogger":
+    def __enter__(self) -> EventLogger:
         self.start()
         return self
 
@@ -115,9 +120,10 @@ class EventLogger:
         event.setdefault("severity", Severity.INFO.value)
 
         if self.settings.hash_passwords and event.get("password"):
-            event["password"] = "sha256:" + hashlib.sha256(
-                event["password"].encode("utf-8", "replace")
-            ).hexdigest()[:32]
+            event["password"] = (
+                "sha256:"
+                + hashlib.sha256(event["password"].encode("utf-8", "replace")).hexdigest()[:32]
+            )
 
         try:
             self._queue.put_nowait(("event", event))
@@ -137,7 +143,7 @@ class EventLogger:
             self.dropped += 1
             return False
 
-    def save_payload(self, data: bytes) -> Optional[str]:
+    def save_payload(self, data: bytes) -> str | None:
         """Write a captured payload to disk, keyed by content hash.
 
         Returns the sha256 hex digest, or None if capture is disabled. Storing

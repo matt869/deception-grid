@@ -27,11 +27,10 @@ import argparse
 import asyncio
 import ipaddress
 import logging
-import random
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -138,7 +137,9 @@ async def _connect(host: str, port: int, timeout: float = 5.0):
     return await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
 
 
-async def run_http(scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats) -> None:
+async def run_http(
+    scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats
+) -> None:
     paths = list(scenario.get("paths", ["/"]))
     payloads = list(scenario.get("payloads", []))
     user_agent = scenario.get("user_agent", "attacker-harness/1.0")
@@ -160,7 +161,7 @@ async def run_http(scenario: Scenario, host: str, port: int, limiter: RateLimite
             writer.close()
             await writer.wait_closed()
             stats.actions += 1
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             stats.errors += 1
             log.debug("http action failed: %s", exc)
 
@@ -175,7 +176,9 @@ def _build_http_request(
     return "\r\n".join(lines)
 
 
-async def run_telnet(scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats) -> None:
+async def run_telnet(
+    scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats
+) -> None:
     credentials = scenario.get("credentials")
     if credentials is None:
         usernames = scenario.get("usernames", ["root"])
@@ -207,12 +210,14 @@ async def run_telnet(scenario: Scenario, host: str, port: int, limiter: RateLimi
                     stats.actions += 1
             writer.close()
             await writer.wait_closed()
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             stats.errors += 1
             log.debug("telnet action failed: %s", exc)
 
 
-async def run_ftp(scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats) -> None:
+async def run_ftp(
+    scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats
+) -> None:
     usernames = scenario.get("usernames", ["anonymous"])
     passwords = scenario.get("passwords", ["anonymous@"])
     pairs = [[u, p] for u in usernames for p in passwords][: scenario.count]
@@ -229,12 +234,14 @@ async def run_ftp(scenario: Scenario, host: str, port: int, limiter: RateLimiter
             stats.actions += 1
             writer.close()
             await writer.wait_closed()
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             stats.errors += 1
             log.debug("ftp action failed: %s", exc)
 
 
-async def run_ssh(scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats) -> None:
+async def run_ssh(
+    scenario: Scenario, host: str, port: int, limiter: RateLimiter, stats: Stats
+) -> None:
     """Send the SSH version banner and a KEXINIT so the sensor can fingerprint us.
 
     We do not implement the full handshake — that needs a crypto library the
@@ -255,7 +262,7 @@ async def run_ssh(scenario: Scenario, host: str, port: int, limiter: RateLimiter
             stats.actions += 1
             writer.close()
             await writer.wait_closed()
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             stats.errors += 1
             log.debug("ssh action failed: %s", exc)
 
@@ -271,7 +278,10 @@ def _fake_kexinit() -> bytes:
         b"aes128-ctr,aes256-ctr",
         b"hmac-sha2-256,hmac-sha1",
         b"hmac-sha2-256,hmac-sha1",
-        b"none", b"none", b"", b"",
+        b"none",
+        b"none",
+        b"",
+        b"",
     ]
     payload = bytes([20]) + b"\x00" * 16  # msg type + cookie
     for entry in algorithms:
@@ -294,15 +304,19 @@ DRIVERS = {"http": run_http, "telnet": run_telnet, "ftp": run_ftp, "ssh": run_ss
 # --------------------------------------------------------------------------- #
 
 
-async def run_scenario(scenario: Scenario, host: str, port: Optional[int]) -> Stats:
+async def run_scenario(scenario: Scenario, host: str, port: int | None) -> Stats:
     resolved_port = port or DEFAULT_PORTS[scenario.service]
     limiter = RateLimiter(scenario.rate_per_second)
     stats = Stats()
 
     log.info(
         "running %r against %s:%d (%s, %d actions, %.0f/s)",
-        scenario.name, host, resolved_port, scenario.service,
-        scenario.count, scenario.rate_per_second,
+        scenario.name,
+        host,
+        resolved_port,
+        scenario.service,
+        scenario.count,
+        scenario.rate_per_second,
     )
     driver = DRIVERS[scenario.service]
     started = time.monotonic()
@@ -311,13 +325,16 @@ async def run_scenario(scenario: Scenario, host: str, port: Optional[int]) -> St
 
     log.info(
         "  %r done: %d actions, %d errors, %.1fs (%.1f/s)",
-        scenario.name, stats.actions, stats.errors, elapsed,
+        scenario.name,
+        stats.actions,
+        stats.errors,
+        elapsed,
         stats.actions / elapsed if elapsed else 0,
     )
     return stats
 
 
-def _refuses_target(host: str) -> Optional[str]:
+def _refuses_target(host: str) -> str | None:
     """Return a refusal reason if the target looks like it is not yours.
 
     A guardrail, not a security control: it only blocks the obvious mistake of
@@ -355,12 +372,13 @@ async def async_main(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Honeypot traffic generator (test client)")
     parser.add_argument("--target", default="127.0.0.1", help="honeypot host (default localhost)")
     parser.add_argument("--port", type=int, help="override the service's default port")
     parser.add_argument(
-        "--scenario", default="all",
+        "--scenario",
+        default="all",
         help="scenario name, path, or 'all' (available: " + ", ".join(available_scenarios()) + ")",
     )
     parser.add_argument("--loop", action="store_true", help="repeat until interrupted")
@@ -368,12 +386,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--list", action="store_true", help="list scenarios and exit")
     parser.add_argument(
-        "--i-operate-this-target", action="store_true",
+        "--i-operate-this-target",
+        action="store_true",
         help="acknowledge you operate a non-private target (see README)",
     )
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=args.log_level.upper(), format="%(asctime)s %(levelname)-7s %(message)s")
+    logging.basicConfig(
+        level=args.log_level.upper(), format="%(asctime)s %(levelname)-7s %(message)s"
+    )
 
     if args.list:
         print("available scenarios:")

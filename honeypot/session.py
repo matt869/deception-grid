@@ -16,7 +16,7 @@ import datetime as dt
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from honeypot.config import Settings
 from honeypot.logger import EventLogger
@@ -45,14 +45,14 @@ class HoneypotSession:
     auth_attempts: int = 0
     commands_run: int = 0
     bytes_in: int = 0
-    client_banner: Optional[str] = None
-    closed_by: Optional[str] = None
+    client_banner: str | None = None
+    closed_by: str | None = None
 
     # Credentials seen this session, so a service can decide whether to "accept"
     # a login it has already rejected — inconsistency is a tell.
     seen_credentials: set = field(default_factory=set)
     authenticated: bool = False
-    username: Optional[str] = None
+    username: str | None = None
 
     # ------------------------------------------------------------------ #
 
@@ -99,18 +99,18 @@ class HoneypotSession:
         event_type: EventType | str,
         *,
         severity: Severity | str = Severity.INFO,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        command: Optional[str] = None,
-        http_method: Optional[str] = None,
-        path: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        status_code: Optional[int] = None,
-        headers: Optional[dict[str, str]] = None,
-        payload_sha256: Optional[str] = None,
+        username: str | None = None,
+        password: str | None = None,
+        command: str | None = None,
+        http_method: str | None = None,
+        path: str | None = None,
+        user_agent: str | None = None,
+        status_code: int | None = None,
+        headers: dict[str, str] | None = None,
+        payload_sha256: str | None = None,
         payload_size: int = 0,
-        tags: Optional[list[str]] = None,
-        extra: Optional[dict[str, Any]] = None,
+        tags: list[str] | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> bool:
         """Emit one event for this session.
 

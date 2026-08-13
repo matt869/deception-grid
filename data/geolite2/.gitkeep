@@ -1,0 +1,7 @@
+# Drop MaxMind GeoLite2 databases here for real geolocation:
+#   GeoLite2-City.mmdb   — country/city/lat/lon
+#   GeoLite2-ASN.mmdb    — ASN and network operator
+#
+# Free but licensed; create a MaxMind account to download. Not redistributed
+# with this project. Without them, geolocation is reported as "unavailable"
+# (never guessed). See docs/event_schema.md.

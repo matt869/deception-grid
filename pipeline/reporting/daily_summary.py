@@ -16,13 +16,13 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 
 from storage import queries
 from storage.db import session_scope
-from storage.models import Alert, Attacker, Event, Severity, ensure_utc, utcnow
+from storage.models import Alert, Attacker, Event, ensure_utc, utcnow
 
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 
@@ -70,7 +70,9 @@ def build_summary(db, hours: float = 24, top_n: int = 10) -> dict[str, Any]:
         "credential_pairs": queries.credential_pairs(db, limit=top_n, since_hours=hours),
         "alerts_by_severity": by_severity,
         "alerts_by_rule": queries.alert_counts_by_rule(db, since_hours=hours),
-        "notable_alerts": [_alert_row(a) for a in alerts if a.severity in ("critical", "high")][:top_n],
+        "notable_alerts": [_alert_row(a) for a in alerts if a.severity in ("critical", "high")][
+            :top_n
+        ],
         "top_attackers": [_attacker_row(a) for a in top_attackers],
         "new_attackers": [_attacker_row(a) for a in new_attackers],
         "payload_urls": payload_urls,
@@ -141,7 +143,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     end = summary["generated_at"].strftime("%Y-%m-%d %H:%M")
 
     out: list[str] = [
-        f"# Honeypot daily summary",
+        "# Honeypot daily summary",
         "",
         f"**Window:** {start} → {end} UTC ({summary['window_hours']:g}h)",
         "",
@@ -167,7 +169,12 @@ def render_markdown(summary: dict[str, Any]) -> str:
         out += [""]
 
     if summary["notable_alerts"]:
-        out += ["## Notable alerts", "", "| Severity | Rule | Source | Hits |", "| --- | --- | --- | ---: |"]
+        out += [
+            "## Notable alerts",
+            "",
+            "| Severity | Rule | Source | Hits |",
+            "| --- | --- | --- | ---: |",
+        ]
         for alert in summary["notable_alerts"]:
             out.append(
                 f"| {alert['severity']} | {alert['rule_name']} | "
@@ -177,7 +184,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     if summary["top_attackers"]:
         out += [
-            "## Top sources by threat score", "",
+            "## Top sources by threat score",
+            "",
             "| Score | Source | Class | Country | Network | Events |",
             "| ---: | --- | --- | --- | --- | ---: |",
         ]
@@ -193,13 +201,23 @@ def render_markdown(summary: dict[str, Any]) -> str:
     out += _table_section("Most-requested paths", summary["top_paths"], "Path")
 
     if summary["credential_pairs"]:
-        out += ["## Top credential pairs", "", "| Username | Password | Count |", "| --- | --- | ---: |"]
+        out += [
+            "## Top credential pairs",
+            "",
+            "| Username | Password | Count |",
+            "| --- | --- | ---: |",
+        ]
         for pair in summary["credential_pairs"]:
             out.append(f"| `{pair['username']}` | `{pair['password'] or ''}` | {pair['count']:,} |")
         out.append("")
 
     if summary["top_countries"]:
-        out += ["## Source countries", "", "| Country | Events | Sources |", "| --- | ---: | ---: |"]
+        out += [
+            "## Source countries",
+            "",
+            "| Country | Events | Sources |",
+            "| --- | ---: | ---: |",
+        ]
         for row in summary["top_countries"]:
             name = row["country_name"] or row["country"]
             out.append(f"| {name} ({row['country']}) | {row['events']:,} | {row['attackers']:,} |")
@@ -249,14 +267,27 @@ def render_text(summary: dict[str, Any]) -> str:
     return re.sub(r"^\s*-+\s+-+.*$", "", text, flags=re.M)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def _force_utf8_stdout() -> None:
+    """Make stdout UTF-8 regardless of the platform's default console encoding.
+
+    Windows consoles default to a legacy code page (cp1252) that cannot encode
+    the arrows and box characters in the report, so an un-redirected run crashes
+    with UnicodeEncodeError. Reconfiguring is the portable fix; ``errors`` guards
+    the rare terminal that still can't render a glyph.
+    """
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover - non-reconfigurable stream
+        pass
+
+
+def main(argv: list[str] | None = None) -> int:
+    _force_utf8_stdout()
     parser = argparse.ArgumentParser(description="Generate the honeypot daily summary")
     parser.add_argument("--days", type=float, default=1.0, help="window in days (default 1)")
     parser.add_argument("--hours", type=float, help="window in hours; overrides --days")
     parser.add_argument("--top", type=int, default=10, help="rows per top-N table")
-    parser.add_argument(
-        "--format", choices=("markdown", "text", "json"), default="markdown"
-    )
+    parser.add_argument("--format", choices=("markdown", "text", "json"), default="markdown")
     parser.add_argument("--out", help="write to this file instead of stdout")
     args = parser.parse_args(argv)
 

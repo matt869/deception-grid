@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime as dt
 import enum
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -39,10 +39,10 @@ def utcnow() -> dt.datetime:
     ``datetime.utcnow`` is deprecated in 3.12 and returns a naive value, which
     silently breaks comparisons against the aware timestamps we store.
     """
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
-def ensure_utc(value: Optional[dt.datetime]) -> Optional[dt.datetime]:
+def ensure_utc(value: dt.datetime | None) -> dt.datetime | None:
     """Normalise a datetime read back from the database to aware UTC.
 
     SQLite has no timestamp type, so SQLAlchemy hands back *naive* datetimes
@@ -52,8 +52,8 @@ def ensure_utc(value: Optional[dt.datetime]) -> Optional[dt.datetime]:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=dt.timezone.utc)
-    return value.astimezone(dt.timezone.utc)
+        return value.replace(tzinfo=dt.UTC)
+    return value.astimezone(dt.UTC)
 
 
 class Base(DeclarativeBase):
@@ -119,12 +119,10 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     event_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
-    ts: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, index=True
-    )
+    ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
     # -- provenance ---------------------------------------------------------
-    session_id: Mapped[Optional[str]] = mapped_column(
+    session_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("sessions.session_id", ondelete="CASCADE"), index=True
     )
     sensor: Mapped[str] = mapped_column(String(64), default="default", index=True)
@@ -133,47 +131,47 @@ class Event(Base):
 
     # -- network ------------------------------------------------------------
     src_ip: Mapped[str] = mapped_column(String(45), index=True)  # 45 = max IPv6 len
-    src_port: Mapped[Optional[int]] = mapped_column(Integer)
-    dst_port: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    src_port: Mapped[int | None] = mapped_column(Integer)
+    dst_port: Mapped[int | None] = mapped_column(Integer, index=True)
     transport: Mapped[str] = mapped_column(String(8), default="tcp")
 
     # -- credentials --------------------------------------------------------
-    username: Mapped[Optional[str]] = mapped_column(String(256), index=True)
-    password: Mapped[Optional[str]] = mapped_column(String(256), index=True)
+    username: Mapped[str | None] = mapped_column(String(256), index=True)
+    password: Mapped[str | None] = mapped_column(String(256), index=True)
 
     # -- shell / command activity -------------------------------------------
-    command: Mapped[Optional[str]] = mapped_column(Text)
+    command: Mapped[str | None] = mapped_column(Text)
 
     # -- http ---------------------------------------------------------------
-    http_method: Mapped[Optional[str]] = mapped_column(String(16))
-    path: Mapped[Optional[str]] = mapped_column(Text, index=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
-    status_code: Mapped[Optional[int]] = mapped_column(Integer)
-    headers: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON)
+    http_method: Mapped[str | None] = mapped_column(String(16))
+    path: Mapped[str | None] = mapped_column(Text, index=True)
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    headers: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # -- payload ------------------------------------------------------------
     payload_size: Mapped[int] = mapped_column(Integer, default=0)
-    payload_sha256: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    payload_sha256: Mapped[str | None] = mapped_column(String(64), index=True)
 
     # -- enrichment (flattened, see module docstring) -----------------------
-    country: Mapped[Optional[str]] = mapped_column(String(2), index=True)
-    country_name: Mapped[Optional[str]] = mapped_column(String(64))
-    city: Mapped[Optional[str]] = mapped_column(String(128))
-    latitude: Mapped[Optional[float]] = mapped_column(Float)
-    longitude: Mapped[Optional[float]] = mapped_column(Float)
-    asn: Mapped[Optional[int]] = mapped_column(Integer, index=True)
-    as_org: Mapped[Optional[str]] = mapped_column(String(256))
-    geo_source: Mapped[Optional[str]] = mapped_column(String(32))
+    country: Mapped[str | None] = mapped_column(String(2), index=True)
+    country_name: Mapped[str | None] = mapped_column(String(64))
+    city: Mapped[str | None] = mapped_column(String(128))
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    asn: Mapped[int | None] = mapped_column(Integer, index=True)
+    as_org: Mapped[str | None] = mapped_column(String(256))
+    geo_source: Mapped[str | None] = mapped_column(String(32))
 
     threat_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
-    threat_tags: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
+    threat_tags: Mapped[list[str] | None] = mapped_column(JSON, default=list)
 
     # -- classification -----------------------------------------------------
     severity: Mapped[str] = mapped_column(String(16), default=Severity.INFO.value, index=True)
-    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
-    extra: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, default=dict)
+    tags: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    extra: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=dict)
 
-    session: Mapped[Optional["Session"]] = relationship(back_populates="events")
+    session: Mapped[Session | None] = relationship(back_populates="events")
 
     __table_args__ = (
         # The dashboard's two hottest access patterns: "recent activity for one
@@ -196,25 +194,25 @@ class Session(Base):
     sensor: Mapped[str] = mapped_column(String(64), default="default")
     service: Mapped[str] = mapped_column(String(16), index=True)
     src_ip: Mapped[str] = mapped_column(String(45), index=True)
-    src_port: Mapped[Optional[int]] = mapped_column(Integer)
-    dst_port: Mapped[Optional[int]] = mapped_column(Integer)
+    src_port: Mapped[int | None] = mapped_column(Integer)
+    dst_port: Mapped[int | None] = mapped_column(Integer)
 
     started_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )
-    ended_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime(timezone=True))
-    duration_ms: Mapped[Optional[int]] = mapped_column(Integer)
+    ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
 
     event_count: Mapped[int] = mapped_column(Integer, default=0)
     auth_attempts: Mapped[int] = mapped_column(Integer, default=0)
     commands_run: Mapped[int] = mapped_column(Integer, default=0)
     bytes_in: Mapped[int] = mapped_column(Integer, default=0)
 
-    client_banner: Mapped[Optional[str]] = mapped_column(Text)
-    closed_by: Mapped[Optional[str]] = mapped_column(String(16))  # client|server|timeout
+    client_banner: Mapped[str | None] = mapped_column(Text)
+    closed_by: Mapped[str | None] = mapped_column(String(16))  # client|server|timeout
 
-    country: Mapped[Optional[str]] = mapped_column(String(2), index=True)
-    asn: Mapped[Optional[int]] = mapped_column(Integer)
+    country: Mapped[str | None] = mapped_column(String(2), index=True)
+    asn: Mapped[int | None] = mapped_column(Integer)
 
     events: Mapped[list[Event]] = relationship(
         back_populates="session", cascade="all, delete-orphan", passive_deletes=True
@@ -245,21 +243,21 @@ class Attacker(Base):
     distinct_passwords: Mapped[int] = mapped_column(Integer, default=0)
     commands_run: Mapped[int] = mapped_column(Integer, default=0)
 
-    services: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
-    top_usernames: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
-    top_passwords: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
-    top_paths: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
+    services: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    top_usernames: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    top_passwords: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    top_paths: Mapped[list[str] | None] = mapped_column(JSON, default=list)
 
-    country: Mapped[Optional[str]] = mapped_column(String(2), index=True)
-    country_name: Mapped[Optional[str]] = mapped_column(String(64))
-    latitude: Mapped[Optional[float]] = mapped_column(Float)
-    longitude: Mapped[Optional[float]] = mapped_column(Float)
-    asn: Mapped[Optional[int]] = mapped_column(Integer, index=True)
-    as_org: Mapped[Optional[str]] = mapped_column(String(256))
+    country: Mapped[str | None] = mapped_column(String(2), index=True)
+    country_name: Mapped[str | None] = mapped_column(String(64))
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    asn: Mapped[int | None] = mapped_column(Integer, index=True)
+    as_org: Mapped[str | None] = mapped_column(String(256))
 
     threat_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
-    classification: Mapped[Optional[str]] = mapped_column(String(32), index=True)
-    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
+    classification: Mapped[str | None] = mapped_column(String(32), index=True)
+    tags: Mapped[list[str] | None] = mapped_column(JSON, default=list)
 
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -285,14 +283,14 @@ class Alert(Base):
     rule_name: Mapped[str] = mapped_column(String(256))
     severity: Mapped[str] = mapped_column(String(16), index=True)
 
-    src_ip: Mapped[Optional[str]] = mapped_column(String(45), index=True)
-    session_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
-    service: Mapped[Optional[str]] = mapped_column(String(16), index=True)
+    src_ip: Mapped[str | None] = mapped_column(String(45), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    service: Mapped[str | None] = mapped_column(String(16), index=True)
 
     title: Mapped[str] = mapped_column(String(512))
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    evidence: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, default=dict)
-    mitre: Mapped[Optional[list[str]]] = mapped_column(JSON, default=list)
+    description: Mapped[str | None] = mapped_column(Text)
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=dict)
+    mitre: Mapped[list[str] | None] = mapped_column(JSON, default=list)
 
     first_seen: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
@@ -301,7 +299,7 @@ class Alert(Base):
     hit_count: Mapped[int] = mapped_column(Integer, default=1)
 
     status: Mapped[str] = mapped_column(String(16), default=AlertStatus.NEW.value, index=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
 
     dedupe_key: Mapped[str] = mapped_column(String(256), index=True)
 
@@ -327,7 +325,7 @@ class Indicator(Base):
     kind: Mapped[str] = mapped_column(String(16), index=True)  # ip|cidr|asn|ua|path
     value: Mapped[str] = mapped_column(String(256), index=True)
     source: Mapped[str] = mapped_column(String(64))
-    category: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    category: Mapped[str | None] = mapped_column(String(64), index=True)
     score: Mapped[float] = mapped_column(Float, default=0.0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     added_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -183,10 +183,17 @@ def index() -> dict:
         "docs": "/docs",
         "health": "/api/health",
         "endpoints": [
-            "/api/events", "/api/events/live", "/api/sessions/{id}",
-            "/api/stats/summary", "/api/stats/timeseries", "/api/stats/heatmap",
-            "/api/attackers", "/api/attackers/map", "/api/attackers/{ip}",
-            "/api/alerts", "/api/alerts/rules",
+            "/api/events",
+            "/api/events/live",
+            "/api/sessions/{id}",
+            "/api/stats/summary",
+            "/api/stats/timeseries",
+            "/api/stats/heatmap",
+            "/api/attackers",
+            "/api/attackers/map",
+            "/api/attackers/{ip}",
+            "/api/alerts",
+            "/api/alerts/rules",
         ],
     }
 

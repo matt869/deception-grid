@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as OrmSession
 
-from api.schemas import EventOut, Page, SessionDetail, SessionOut, redact_passwords
+from api.schemas import EventOut, Page, SessionDetail, redact_passwords
 from storage import queries
 from storage.db import get_db
 from storage.models import EventType, Service, Severity
@@ -25,15 +24,15 @@ def list_events(
     db: OrmSession = Depends(get_db),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    service: Optional[str] = Query(None, description="ssh | telnet | ftp | http"),
-    event_type: Optional[str] = Query(None),
-    src_ip: Optional[str] = Query(None),
-    country: Optional[str] = Query(None, min_length=2, max_length=2),
-    username: Optional[str] = Query(None),
-    session_id: Optional[str] = Query(None),
-    min_severity: Optional[str] = Query(None, description="info | low | medium | high | critical"),
-    search: Optional[str] = Query(None, description="substring match on command, path, username, UA"),
-    since_hours: Optional[float] = Query(None, gt=0, le=24 * 365),
+    service: str | None = Query(None, description="ssh | telnet | ftp | http"),
+    event_type: str | None = Query(None),
+    src_ip: str | None = Query(None),
+    country: str | None = Query(None, min_length=2, max_length=2),
+    username: str | None = Query(None),
+    session_id: str | None = Query(None),
+    min_severity: str | None = Query(None, description="info | low | medium | high | critical"),
+    search: str | None = Query(None, description="substring match on command, path, username, UA"),
+    since_hours: float | None = Query(None, gt=0, le=24 * 365),
     order: str = Query("desc", pattern="^(asc|desc)$"),
 ) -> Page[EventOut]:
     # Validate enum-ish parameters here rather than letting them silently match
@@ -72,10 +71,10 @@ def list_events(
 def live_events(
     db: OrmSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
-    after_id: Optional[str] = Query(
+    after_id: str | None = Query(
         None, description="Return only events newer than this event_id (cursor for polling)"
     ),
-    min_severity: Optional[str] = Query(None),
+    min_severity: str | None = Query(None),
 ) -> list[EventOut]:
     """Feed endpoint for the live view.
 

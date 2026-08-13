@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Optional
 from urllib.parse import parse_qs, unquote_plus
 
 from honeypot.deception.responses import http_response_for
@@ -35,18 +34,33 @@ ATTACK_PATTERNS: list[tuple[str, Severity, re.Pattern[str]]] = [
     ("log4shell", Severity.CRITICAL, re.compile(r"\$\{jndi:(ldap|rmi|dns|iiop)", re.I)),
     ("shellshock", Severity.CRITICAL, re.compile(r"\(\s*\)\s*\{.*;\s*\}\s*;", re.S)),
     ("path-traversal", Severity.HIGH, re.compile(r"(\.\./|\.\.\\|%2e%2e[/\\%])", re.I)),
-    ("sql-injection", Severity.HIGH, re.compile(
-        r"(\bunion\b[\s/*]+\bselect\b|'\s*or\s*'?1'?\s*=\s*'?1|\bsleep\s*\(\d|"
-        r"\bbenchmark\s*\(|information_schema)", re.I)),
-    ("command-injection", Severity.HIGH, re.compile(
-        r"(;|\||`|\$\()\s*(cat|wget|curl|nc|bash|sh|python|perl)\b", re.I)),
-    ("webshell-upload", Severity.CRITICAL, re.compile(
-        r"\.(php|jsp|asp|aspx|phtml)[\d]?($|\?|;)", re.I)),
+    (
+        "sql-injection",
+        Severity.HIGH,
+        re.compile(
+            r"(\bunion\b[\s/*]+\bselect\b|'\s*or\s*'?1'?\s*=\s*'?1|\bsleep\s*\(\d|"
+            r"\bbenchmark\s*\(|information_schema)",
+            re.I,
+        ),
+    ),
+    (
+        "command-injection",
+        Severity.HIGH,
+        re.compile(r"(;|\||`|\$\()\s*(cat|wget|curl|nc|bash|sh|python|perl)\b", re.I),
+    ),
+    (
+        "webshell-upload",
+        Severity.CRITICAL,
+        re.compile(r"\.(php|jsp|asp|aspx|phtml)[\d]?($|\?|;)", re.I),
+    ),
     ("xss-probe", Severity.MEDIUM, re.compile(r"(<script|javascript:|onerror\s*=)", re.I)),
     ("env-file-probe", Severity.HIGH, re.compile(r"/\.(env|git|aws|ssh|svn)(/|$)", re.I)),
     ("cgi-probe", Severity.MEDIUM, re.compile(r"/cgi-bin/", re.I)),
-    ("admin-probe", Severity.LOW, re.compile(
-        r"/(wp-admin|wp-login|phpmyadmin|admin|manager/html|solr|actuator)", re.I)),
+    (
+        "admin-probe",
+        Severity.LOW,
+        re.compile(r"/(wp-admin|wp-login|phpmyadmin|admin|manager/html|solr|actuator)", re.I),
+    ),
 ]
 
 CREDENTIAL_FIELDS = ("username", "user", "usr", "login", "email", "log", "pwd", "password", "pass")
@@ -61,7 +75,7 @@ class ParsedRequest:
         self.version: str = ""
         self.headers: dict[str, str] = {}
         self.body: bytes = b""
-        self.malformed: Optional[str] = None
+        self.malformed: str | None = None
 
 
 class HTTPService(BaseService):
@@ -87,7 +101,9 @@ class HTTPService(BaseService):
                     tags=["malformed-http"],
                     extra={"reason": request.malformed},
                 )
-                await self.send(writer, self._raw_response(400, "text/html", "<h1>Bad Request</h1>"))
+                await self.send(
+                    writer, self._raw_response(400, "text/html", "<h1>Bad Request</h1>")
+                )
                 return
 
             keep_alive = self._handle_request(session, request, writer)
@@ -103,7 +119,7 @@ class HTTPService(BaseService):
 
     async def _read_request(
         self, session: HoneypotSession, reader: asyncio.StreamReader
-    ) -> Optional[ParsedRequest]:
+    ) -> ParsedRequest | None:
         request = ParsedRequest()
 
         request_line = await self.read_line(session, reader)
@@ -153,7 +169,11 @@ class HTTPService(BaseService):
         # Decode once for matching so %2e%2e%2f traversal is not missed, but
         # keep the raw path for the record — the encoding is itself evidence.
         haystack = "\n".join(
-            [unquote_plus(request.path), body_text, *(f"{k}: {v}" for k, v in request.headers.items())]
+            [
+                unquote_plus(request.path),
+                body_text,
+                *(f"{k}: {v}" for k, v in request.headers.items()),
+            ]
         )
 
         tags: list[str] = []
@@ -212,8 +232,11 @@ class HTTPService(BaseService):
         self, status: int, content_type: str, body: str, keep_alive: bool = False
     ) -> bytes:
         reason = {
-            200: "OK", 400: "Bad Request", 403: "Forbidden",
-            404: "Not Found", 500: "Internal Server Error",
+            200: "OK",
+            400: "Bad Request",
+            403: "Forbidden",
+            404: "Not Found",
+            500: "Internal Server Error",
         }.get(status, "OK")
         encoded = body.encode("utf-8", "replace")
 
@@ -229,7 +252,7 @@ class HTTPService(BaseService):
         return ("\r\n".join(headers) + "\r\n\r\n").encode() + encoded
 
 
-def _extract_credentials(request: ParsedRequest, body_text: str) -> tuple[Optional[str], Optional[str]]:
+def _extract_credentials(request: ParsedRequest, body_text: str) -> tuple[str | None, str | None]:
     """Pull username/password out of a form post or a Basic auth header."""
     username = password = None
 

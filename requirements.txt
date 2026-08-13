@@ -1,0 +1,23 @@
+# Core runtime — the honeypot sensor and the pipeline need only these.
+SQLAlchemy>=2.0,<3.0
+PyYAML>=6.0
+
+# API
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29
+pydantic>=2.6,<3.0
+
+# --- optional, feature-gated -------------------------------------------------
+# The sensor and pipeline run without these; each unlocks one capability and is
+# imported lazily so its absence degrades gracefully rather than crashing.
+
+# SSH credential capture (full mode). Without it, SSH runs in fingerprint-only
+# mode — HASSH + client banner, no passwords.
+paramiko>=3.4 ; extra == "ssh"
+
+# GeoIP / ASN enrichment from MaxMind GeoLite2 .mmdb files. Without it,
+# geolocation is simply unavailable (never guessed).
+geoip2>=4.8 ; extra == "geo"
+
+# HTTP form parsing for the API's multipart paths.
+python-multipart>=0.0.9 ; extra == "api"

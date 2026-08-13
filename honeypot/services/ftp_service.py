@@ -62,13 +62,18 @@ class FTPService(BaseService):
             if not authenticated and command not in PREAUTH_COMMANDS:
                 await self.send(writer, "530 Please login with USER and PASS.\r\n")
                 session.record(
-                    EventType.COMMAND, severity=Severity.LOW,
-                    command=line, tags=["ftp-preauth-refused"],
+                    EventType.COMMAND,
+                    severity=Severity.LOW,
+                    command=line,
+                    tags=["ftp-preauth-refused"],
                 )
                 continue
 
             response, should_close = await self._dispatch(
-                session, command, argument, rng,
+                session,
+                command,
+                argument,
+                rng,
                 state={"username": username, "authenticated": authenticated, "cwd": cwd},
             )
 
@@ -124,8 +129,10 @@ class FTPService(BaseService):
             threshold = 0.8 if anonymous else self.settings.accept_login_rate
             if rng.random() < threshold:
                 session.record(
-                    EventType.AUTH_SUCCESS, severity=Severity.HIGH,
-                    username=username, tags=["ftp-login-accepted"],
+                    EventType.AUTH_SUCCESS,
+                    severity=Severity.HIGH,
+                    username=username,
+                    tags=["ftp-login-accepted"],
                 )
                 return "230 Login successful.\r\n", False
             await asyncio.sleep(rng.uniform(0.3, 1.0))
@@ -144,8 +151,13 @@ class FTPService(BaseService):
             return f'257 "{state["cwd"]}" is the current directory\r\n', False
 
         if command == "CWD":
-            session.record(EventType.COMMAND, severity=Severity.LOW,
-                           command=f"CWD {argument}", path=argument, tags=["ftp-navigate"])
+            session.record(
+                EventType.COMMAND,
+                severity=Severity.LOW,
+                command=f"CWD {argument}",
+                path=argument,
+                tags=["ftp-navigate"],
+            )
             return "250 Directory successfully changed.\r\n", False
 
         if command == "TYPE":
@@ -153,8 +165,9 @@ class FTPService(BaseService):
 
         if command == "PASV":
             # Advertised but never serviced; see the module docstring.
-            session.record(EventType.COMMAND, severity=Severity.LOW,
-                           command="PASV", tags=["ftp-passive"])
+            session.record(
+                EventType.COMMAND, severity=Severity.LOW, command="PASV", tags=["ftp-passive"]
+            )
             return "227 Entering Passive Mode (127,0,0,1,39,17).\r\n", False
 
         if command == "PORT":
@@ -169,8 +182,12 @@ class FTPService(BaseService):
             return "500 Illegal PORT command.\r\n", False
 
         if command in ("LIST", "NLST"):
-            session.record(EventType.COMMAND, severity=Severity.LOW,
-                           command=line_for(command, argument), tags=["ftp-list"])
+            session.record(
+                EventType.COMMAND,
+                severity=Severity.LOW,
+                command=line_for(command, argument),
+                tags=["ftp-list"],
+            )
             return "150 Here comes the directory listing.\r\n226 Directory send OK.\r\n", False
 
         if command in ("STOR", "STOU", "APPE"):
@@ -185,15 +202,23 @@ class FTPService(BaseService):
             return "550 Permission denied.\r\n", False
 
         if command == "RETR":
-            session.record(EventType.COMMAND, severity=Severity.MEDIUM,
-                           command=line_for(command, argument), path=argument,
-                           tags=["ftp-download-attempt"])
+            session.record(
+                EventType.COMMAND,
+                severity=Severity.MEDIUM,
+                command=line_for(command, argument),
+                path=argument,
+                tags=["ftp-download-attempt"],
+            )
             return "550 Failed to open file.\r\n", False
 
         if command in ("DELE", "RMD", "MKD", "RNFR", "RNTO", "SITE"):
-            session.record(EventType.COMMAND, severity=Severity.HIGH,
-                           command=line_for(command, argument), path=argument,
-                           tags=["ftp-modify-attempt"])
+            session.record(
+                EventType.COMMAND,
+                severity=Severity.HIGH,
+                command=line_for(command, argument),
+                path=argument,
+                tags=["ftp-modify-attempt"],
+            )
             return "550 Permission denied.\r\n", False
 
         if command == "QUIT":
@@ -202,8 +227,12 @@ class FTPService(BaseService):
         if command == "NOOP":
             return "200 NOOP ok.\r\n", False
 
-        session.record(EventType.COMMAND, severity=Severity.LOW,
-                       command=line_for(command, argument), tags=["ftp-unknown"])
+        session.record(
+            EventType.COMMAND,
+            severity=Severity.LOW,
+            command=line_for(command, argument),
+            tags=["ftp-unknown"],
+        )
         return "500 Unknown command.\r\n", False
 
 

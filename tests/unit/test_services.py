@@ -25,7 +25,6 @@ from honeypot.services.ssh_service import (
 )
 from honeypot.services.telnet_service import IOT_DEFAULT_CREDS, strip_telnet_control
 
-
 # --------------------------------------------------------------------------- #
 # Deception layer
 # --------------------------------------------------------------------------- #
@@ -34,7 +33,10 @@ from honeypot.services.telnet_service import IOT_DEFAULT_CREDS, strip_telnet_con
 class TestFakeShell:
     def test_never_executes_unknown_command(self):
         shell = FakeShell(get_persona("ubuntu-generic"), "host")
-        assert shell.run("definitely-not-a-real-binary") == "-bash: definitely-not-a-real-binary: command not found"
+        assert (
+            shell.run("definitely-not-a-real-binary")
+            == "-bash: definitely-not-a-real-binary: command not found"
+        )
 
     def test_whoami_matches_session_user(self):
         shell = FakeShell(get_persona(), "host", username="deploy")
@@ -180,8 +182,18 @@ class TestSSHFingerprint:
         parsed_a = parse_kexinit(self._kexinit())
 
         def other():
-            lists = [b"diffie-hellman-group14-sha1", b"ssh-rsa", b"3des-cbc", b"3des-cbc",
-                     b"hmac-md5", b"hmac-md5", b"none", b"none", b"", b""]
+            lists = [
+                b"diffie-hellman-group14-sha1",
+                b"ssh-rsa",
+                b"3des-cbc",
+                b"3des-cbc",
+                b"hmac-md5",
+                b"hmac-md5",
+                b"none",
+                b"none",
+                b"",
+                b"",
+            ]
             payload = bytes([20]) + b"\x00" * 16
             for entry in lists:
                 payload += struct.pack(">I", len(entry)) + entry

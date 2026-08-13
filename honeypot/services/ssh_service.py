@@ -26,8 +26,6 @@ import asyncio
 import hashlib
 import logging
 import struct
-from pathlib import Path
-from typing import Optional
 
 from honeypot.config import PROJECT_ROOT
 from honeypot.services.base import BaseService
@@ -50,8 +48,16 @@ HOST_KEY_PATH = PROJECT_ROOT / "data" / "ssh_host_rsa_key"
 # Client version strings that belong to mass-scanning tooling rather than to a
 # person. Matching is a substring check on the banner.
 SCANNER_BANNERS = (
-    "libssh", "Go", "paramiko", "PUTTY", "zgrab", "masscan", "nmap",
-    "JSCH", "SSH-2.0-Ruby", "russh",
+    "libssh",
+    "Go",
+    "paramiko",
+    "PUTTY",
+    "zgrab",
+    "masscan",
+    "nmap",
+    "JSCH",
+    "SSH-2.0-Ruby",
+    "russh",
 )
 
 
@@ -60,7 +66,7 @@ SCANNER_BANNERS = (
 # --------------------------------------------------------------------------- #
 
 
-def parse_kexinit(payload: bytes) -> Optional[dict[str, list[str]]]:
+def parse_kexinit(payload: bytes) -> dict[str, list[str]] | None:
     """Parse an ``SSH_MSG_KEXINIT`` payload into its ten algorithm name-lists.
 
     Returns None if the payload is not a well-formed KEXINIT — hostile input, so
@@ -147,8 +153,9 @@ class SSHService(BaseService):
             try:
                 self._host_key = _load_or_create_host_key()
             except Exception as exc:  # pragma: no cover
-                log.warning("could not prepare SSH host key (%s); falling back to "
-                            "fingerprint mode", exc)
+                log.warning(
+                    "could not prepare SSH host key (%s); falling back to fingerprint mode", exc
+                )
 
     @property
     def full_mode(self) -> bool:
@@ -232,13 +239,13 @@ class SSHService(BaseService):
 
     async def _read_binary_packet(
         self, session: HoneypotSession, reader: asyncio.StreamReader
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """Read one unencrypted SSH binary packet and return its payload."""
         try:
             header = await asyncio.wait_for(
                 reader.readexactly(4), timeout=self.settings.read_timeout_s
             )
-        except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError):
+        except (TimeoutError, asyncio.IncompleteReadError, ConnectionError):
             return None
 
         (packet_len,) = struct.unpack(">I", header)
@@ -257,7 +264,7 @@ class SSHService(BaseService):
             body = await asyncio.wait_for(
                 reader.readexactly(packet_len), timeout=self.settings.read_timeout_s
             )
-        except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError):
+        except (TimeoutError, asyncio.IncompleteReadError, ConnectionError):
             return None
 
         session.count_bytes(4 + len(body))
@@ -337,8 +344,11 @@ class SSHService(BaseService):
                 continue
             output = shell.run(line)
             if not session.record(
-                EventType.COMMAND, severity=Severity.HIGH, command=line,
-                username=session.username, tags=["ssh-shell"],
+                EventType.COMMAND,
+                severity=Severity.HIGH,
+                command=line,
+                username=session.username,
+                tags=["ssh-shell"],
             ):
                 return
             if output == "__EXIT__":
@@ -352,7 +362,7 @@ if HAS_PARAMIKO:  # pragma: no cover - only defined when paramiko is present
     class _ParamikoHandler(paramiko.ServerInterface):
         """Records every auth attempt, then decides whether to allow it."""
 
-        def __init__(self, service: "SSHService", session: HoneypotSession) -> None:
+        def __init__(self, service: SSHService, session: HoneypotSession) -> None:
             self.service = service
             self.session = session
             self._attempts = 0
@@ -378,8 +388,10 @@ if HAS_PARAMIKO:  # pragma: no cover - only defined when paramiko is present
             if rng.random() < self.service.settings.accept_login_rate:
                 self.session.authenticated = True
                 self.session.record(
-                    EventType.AUTH_SUCCESS, severity=Severity.HIGH,
-                    username=username, tags=["shell-granted"],
+                    EventType.AUTH_SUCCESS,
+                    severity=Severity.HIGH,
+                    username=username,
+                    tags=["shell-granted"],
                 )
                 return paramiko.AUTH_SUCCESSFUL
             return paramiko.AUTH_FAILED
@@ -403,7 +415,8 @@ if HAS_PARAMIKO:  # pragma: no cover - only defined when paramiko is present
             if kind == "session":
                 return paramiko.OPEN_SUCCEEDED
             self.session.record(
-                EventType.CONNECT, severity=Severity.HIGH,
+                EventType.CONNECT,
+                severity=Severity.HIGH,
                 tags=["channel-request", f"channel:{kind}"],
                 extra={"note": "non-session channel refused (would enable tunnelling)"},
             )
@@ -450,7 +463,8 @@ def _build_disconnect_packet(message: str) -> bytes:
     payload = (
         bytes([1])
         + struct.pack(">I", reason_code)
-        + struct.pack(">I", len(msg)) + msg
+        + struct.pack(">I", len(msg))
+        + msg
         + struct.pack(">I", 0)  # empty language tag
     )
     # Packets are padded so (length + padding) is a multiple of 8, min 4 bytes.

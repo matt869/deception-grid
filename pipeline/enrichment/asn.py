@@ -24,7 +24,7 @@ import logging
 import re
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger("pipeline.asn")
 
@@ -35,21 +35,51 @@ PREFIX_TABLE = PROJECT_ROOT / "data" / "asn_prefixes.tsv"
 
 _reader = None
 _reader_attempted = False
-_prefix_table: Optional[list[tuple[Any, int, str]]] = None
+_prefix_table: list[tuple[Any, int, str]] | None = None
 _lock = threading.Lock()
 
 
 # Organisation-name patterns that indicate infrastructure rather than an
 # end-user connection. Substring match, case-insensitive.
 HOSTING_PATTERNS = (
-    "amazon", "aws", "google", "microsoft", "azure", "digitalocean", "linode",
-    "vultr", "ovh", "hetzner", "scaleway", "contabo", "leaseweb", "choopa",
-    "m247", "cloudflare", "alibaba", "tencent", "oracle cloud", "hostinger",
-    "godaddy", "namecheap", "colocrossing", "quadranet", "psychz", "datacamp",
+    "amazon",
+    "aws",
+    "google",
+    "microsoft",
+    "azure",
+    "digitalocean",
+    "linode",
+    "vultr",
+    "ovh",
+    "hetzner",
+    "scaleway",
+    "contabo",
+    "leaseweb",
+    "choopa",
+    "m247",
+    "cloudflare",
+    "alibaba",
+    "tencent",
+    "oracle cloud",
+    "hostinger",
+    "godaddy",
+    "namecheap",
+    "colocrossing",
+    "quadranet",
+    "psychz",
+    "datacamp",
 )
 VPN_TOR_PATTERNS = (
-    "nordvpn", "expressvpn", "privateinternetaccess", "mullvad", "surfshark",
-    "protonvpn", "cyberghost", "tor exit", "torservers", "relay",
+    "nordvpn",
+    "expressvpn",
+    "privateinternetaccess",
+    "mullvad",
+    "surfshark",
+    "protonvpn",
+    "cyberghost",
+    "tor exit",
+    "torservers",
+    "relay",
 )
 
 
@@ -67,8 +97,11 @@ def _get_reader():
             return None
         path = GEOLITE_DIR / ASN_DB_NAME
         if not path.exists():
-            log.info("no %s found in %s; ASN lookup falls back to the prefix table",
-                     ASN_DB_NAME, GEOLITE_DIR)
+            log.info(
+                "no %s found in %s; ASN lookup falls back to the prefix table",
+                ASN_DB_NAME,
+                GEOLITE_DIR,
+            )
             return None
         try:
             _reader = geoip2.database.Reader(str(path))
@@ -147,7 +180,7 @@ def lookup(ip: str) -> dict[str, Any]:
     return empty
 
 
-def classify_org(as_org: Optional[str]) -> list[str]:
+def classify_org(as_org: str | None) -> list[str]:
     """Tag a network operator. Works with no database at all."""
     if not as_org:
         return []
@@ -181,8 +214,12 @@ def synthetic_asn(ip: str) -> dict[str, Any]:
 
     digest = hashlib.sha256(("asn:" + ip).encode()).digest()
     orgs = [
-        "Example Hosting BV", "Demo Cloud Services", "Sample Telecom",
-        "Placeholder Datacenter", "Test Network Operator", "Synthetic Broadband",
+        "Example Hosting BV",
+        "Demo Cloud Services",
+        "Sample Telecom",
+        "Placeholder Datacenter",
+        "Test Network Operator",
+        "Synthetic Broadband",
     ]
     return {
         "asn": 64512 + (int.from_bytes(digest[:2], "big") % 1022),
@@ -204,5 +241,12 @@ def close() -> None:
     _prefix_table = None
 
 
-__all__ = ["lookup", "enrich", "classify_org", "synthetic_asn", "close",
-           "HOSTING_PATTERNS", "VPN_TOR_PATTERNS"]
+__all__ = [
+    "lookup",
+    "enrich",
+    "classify_org",
+    "synthetic_asn",
+    "close",
+    "HOSTING_PATTERNS",
+    "VPN_TOR_PATTERNS",
+]

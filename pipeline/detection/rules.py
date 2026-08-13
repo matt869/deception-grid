@@ -23,9 +23,10 @@ import datetime as dt
 import logging
 import uuid
 from collections import Counter, defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any
 
 import yaml
 
@@ -53,7 +54,7 @@ class Rule:
     window_minutes: int = 60
     group_by: str = "src_ip"
     threshold: float = 1
-    distinct_field: Optional[str] = None
+    distinct_field: str | None = None
     where: dict[str, Any] = field(default_factory=dict)
     numerator_where: dict[str, Any] = field(default_factory=dict)
     mitre: list[str] = field(default_factory=list)
@@ -113,8 +114,9 @@ def load_rules(path: Path | str | None = None) -> list[Rule]:
         rule.validate()
         rules.append(rule)
 
-    log.info("loaded %d detection rules (%d enabled)",
-             len(rules), sum(1 for r in rules if r.enabled))
+    log.info(
+        "loaded %d detection rules (%d enabled)", len(rules), sum(1 for r in rules if r.enabled)
+    )
     return rules
 
 
@@ -176,7 +178,9 @@ def matches(event: Event, conditions: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- #
 
 
-def evaluate_rule(rule: Rule, events: Sequence[Event], now: Optional[dt.datetime] = None) -> list[dict[str, Any]]:
+def evaluate_rule(
+    rule: Rule, events: Sequence[Event], now: dt.datetime | None = None
+) -> list[dict[str, Any]]:
     """Evaluate one rule against a sequence of events.
 
     ``window_minutes`` is applied as a **sliding window over the events
@@ -221,7 +225,7 @@ def evaluate_rule(rule: Rule, events: Sequence[Event], now: Optional[dt.datetime
 def _sliding_peak(
     events: list[Event],
     window: dt.timedelta,
-    distinct_field: Optional[str] = None,
+    distinct_field: str | None = None,
 ) -> tuple[int, list[Event]]:
     """Peak count within any ``window``-length span, and the events achieving it.
 
@@ -288,9 +292,7 @@ def _test_group(
     raise RuleError(f"rule {rule.id}: unhandled type {rule.type!r}")  # pragma: no cover
 
 
-def _build_alert(
-    rule: Rule, key: Any, group: list[Event], observed: float
-) -> dict[str, Any]:
+def _build_alert(rule: Rule, key: Any, group: list[Event], observed: float) -> dict[str, Any]:
     timestamps = [ensure_utc(e.ts) for e in group]
     sample = group[0]
 
@@ -315,8 +317,11 @@ def _build_alert(
 
     if rule.type == "distinct" and rule.distinct_field:
         values = sorted(
-            {str(_event_value(e, rule.distinct_field)) for e in group
-             if _event_value(e, rule.distinct_field) is not None}
+            {
+                str(_event_value(e, rule.distinct_field))
+                for e in group
+                if _event_value(e, rule.distinct_field) is not None
+            }
         )
         evidence["distinct_field"] = rule.distinct_field
         evidence["distinct_values_sample"] = values[:25]
@@ -361,8 +366,8 @@ def _format_title(rule: Rule, key: Any, observed: float) -> str:
 
 def evaluate_rules(
     events: Sequence[Event],
-    rules: Optional[Sequence[Rule]] = None,
-    now: Optional[dt.datetime] = None,
+    rules: Sequence[Rule] | None = None,
+    now: dt.datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Evaluate every enabled rule and return all alert dicts."""
     active = rules if rules is not None else load_rules()
@@ -402,9 +407,7 @@ def persist_alerts(db, alert_dicts: Iterable[dict[str, Any]]) -> tuple[int, int]
         # same data — which the scheduler does by design. max() keeps the run
         # idempotent while still ratcheting up when a campaign intensifies.
         existing.hit_count = max(existing.hit_count, payload["hit_count"])
-        existing.last_seen = max(
-            ensure_utc(existing.last_seen), ensure_utc(payload["last_seen"])
-        )
+        existing.last_seen = max(ensure_utc(existing.last_seen), ensure_utc(payload["last_seen"]))
         existing.first_seen = min(
             ensure_utc(existing.first_seen), ensure_utc(payload["first_seen"])
         )
@@ -421,7 +424,7 @@ def persist_alerts(db, alert_dicts: Iterable[dict[str, Any]]) -> tuple[int, int]
 def run_detection(
     db,
     since_hours: float = 24,
-    rules: Optional[Sequence[Rule]] = None,
+    rules: Sequence[Rule] | None = None,
 ) -> dict[str, Any]:
     """Load recent events, evaluate every rule, persist the results."""
     from sqlalchemy import select
@@ -437,7 +440,10 @@ def run_detection(
 
     log.info(
         "detection over %d events: %d alerts (%d new, %d updated)",
-        len(events), len(alert_dicts), created, updated,
+        len(events),
+        len(alert_dicts),
+        created,
+        updated,
     )
     return {
         "events_evaluated": len(events),

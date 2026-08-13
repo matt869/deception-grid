@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sys
-from typing import Optional
 
 from sqlalchemy import delete, func, select
 
@@ -26,8 +25,11 @@ def current_counts() -> dict[str, int]:
     try:
         with session_scope() as db:
             for name, model in (
-                ("events", Event), ("sessions", Session),
-                ("attackers", Attacker), ("alerts", Alert), ("indicators", Indicator),
+                ("events", Event),
+                ("sessions", Session),
+                ("attackers", Attacker),
+                ("alerts", Alert),
+                ("indicators", Indicator),
             ):
                 counts[name] = int(db.execute(select(func.count()).select_from(model)).scalar_one())
     except Exception:
@@ -80,15 +82,18 @@ def purge_events(older_than_days: float) -> dict[str, int]:
     return removed
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Reset or prune the honeypot database")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     parser.add_argument(
-        "--events-only", action="store_true",
+        "--events-only",
+        action="store_true",
         help="prune old events instead of dropping the schema (needs --older-than)",
     )
     parser.add_argument(
-        "--older-than", type=float, metavar="DAYS",
+        "--older-than",
+        type=float,
+        metavar="DAYS",
         help="with --events-only, delete data older than this many days",
     )
     args = parser.parse_args(argv)

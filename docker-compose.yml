@@ -1,0 +1,73 @@
+# Full stack: honeypot sensor, API, dashboard, and a Postgres datastore.
+#
+#   docker compose up --build
+#   → dashboard  http://localhost:8080
+#   → api docs   http://localhost:8000/docs
+#   → sensor     ports 2222/2323/2121/8081
+#
+# The sensor's ports are published so you can point traffic (or the test client)
+# at them. To take real internet traffic, map low ports at the host, e.g.
+# add "22:2222" — but never run any of this on infrastructure you don't own.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: honeypot
+      POSTGRES_PASSWORD: honeypot
+      POSTGRES_DB: honeypot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honeypot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  sensor:
+    build:
+      context: .
+      dockerfile: honeypot/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://honeypot:honeypot@db:5432/honeypot
+      HONEYPOT_PERSONA: ubuntu-generic
+      SENSOR_NAME: docker-sensor
+    ports:
+      - "2222:2222"   # ssh
+      - "2323:2323"   # telnet
+      - "2121:2121"   # ftp
+      - "8081:8081"   # http
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://honeypot:honeypot@db:5432/honeypot
+      # The dashboard is served same-origin via nginx, so the browser never
+      # calls the API cross-origin; no permissive CORS needed.
+      API_CORS_ORIGINS: http://localhost:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

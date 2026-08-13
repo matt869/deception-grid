@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as OrmSession
 
@@ -121,7 +119,10 @@ def credentials(
     hours: float = Query(DEFAULT_WINDOW, gt=0, le=MAX_WINDOW),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[CredentialPair]:
-    return [CredentialPair(**row) for row in queries.credential_pairs(db, limit=limit, since_hours=hours)]
+    return [
+        CredentialPair(**row)
+        for row in queries.credential_pairs(db, limit=limit, since_hours=hours)
+    ]
 
 
 @router.get("/enrich/{ip}", response_model=EnrichmentOut, summary="Enrich an arbitrary IP")

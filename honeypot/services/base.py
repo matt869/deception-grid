@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from honeypot.config import Settings
 from honeypot.deception.banners import Persona, get_persona
@@ -46,7 +45,7 @@ class BaseService(ABC):
         self.port = port
         self.persona: Persona = get_persona(settings.persona)
         self.hostname = settings.hostname
-        self._server: Optional[asyncio.AbstractServer] = None
+        self._server: asyncio.AbstractServer | None = None
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -108,7 +107,7 @@ class BaseService(ABC):
                 self.handle_session(session, reader, writer),
                 timeout=self.settings.session_timeout_s,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             close_reason = "timeout"
         except SessionLimitExceeded as exc:
             close_reason = "limit"
@@ -157,8 +156,8 @@ class BaseService(ABC):
         self,
         session: HoneypotSession,
         reader: asyncio.StreamReader,
-        timeout: Optional[float] = None,
-    ) -> Optional[str]:
+        timeout: float | None = None,
+    ) -> str | None:
         """Read one CRLF/LF-terminated line.
 
         Returns None on EOF or timeout. Over-long lines are truncated rather
@@ -170,13 +169,13 @@ class BaseService(ABC):
             raw = await asyncio.wait_for(
                 reader.readline(), timeout=timeout or self.settings.read_timeout_s
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
         except (asyncio.LimitOverrunError, ValueError):
             # Line exceeded the stream buffer: drain what we can and move on.
             try:
                 raw = await asyncio.wait_for(reader.read(limit), timeout=5)
-            except (asyncio.TimeoutError, OSError):
+            except (TimeoutError, OSError):
                 return None
 
         if not raw:
@@ -189,13 +188,13 @@ class BaseService(ABC):
         session: HoneypotSession,
         reader: asyncio.StreamReader,
         n: int,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> bytes:
         try:
             data = await asyncio.wait_for(
                 reader.read(n), timeout=timeout or self.settings.read_timeout_s
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return b""
         if data:
             session.count_bytes(len(data))

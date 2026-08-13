@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ipaddress
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as OrmSession
@@ -31,11 +30,11 @@ def list_attackers(
     db: OrmSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    country: Optional[str] = Query(None, min_length=2, max_length=2),
-    classification: Optional[str] = Query(
+    country: str | None = Query(None, min_length=2, max_length=2),
+    classification: str | None = Query(
         None, description="botnet-loader | targeted-intrusion | exploit-attempt | ..."
     ),
-    min_score: Optional[float] = Query(None, ge=0, le=100),
+    min_score: float | None = Query(None, ge=0, le=100),
     sort: str = Query("threat_score"),
 ) -> Page[AttackerOut]:
     if sort not in SORT_FIELDS:
@@ -127,9 +126,7 @@ def get_attacker(
 
         all_events, _ = queries.list_events(db, src_ip=src_ip, limit=5000, order="asc")
         if all_events:
-            detail.score_explanation = ScoreExplanation(
-                **explain_score(attacker, all_events)
-            )
+            detail.score_explanation = ScoreExplanation(**explain_score(attacker, all_events))
 
     return detail
 
@@ -137,7 +134,7 @@ def get_attacker(
 @router.post("/rebuild", response_model=Message, summary="Recompute attacker aggregates")
 def rebuild(
     db: OrmSession = Depends(get_db),
-    src_ip: Optional[str] = Query(None, description="rebuild one IP; omit for all"),
+    src_ip: str | None = Query(None, description="rebuild one IP; omit for all"),
 ) -> Message:
     """Rebuild the ``attackers`` table from raw events.
 

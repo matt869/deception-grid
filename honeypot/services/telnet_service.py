@@ -29,11 +29,26 @@ SB, SE = 0xFA, 0xF0
 # Credentials that Mirai-class malware carries. Seeing one is a strong signal
 # the client is a botnet loader rather than a human or a generic scanner.
 IOT_DEFAULT_CREDS: set[tuple[str, str]] = {
-    ("root", "xc3511"), ("root", "vizxv"), ("root", "admin"), ("admin", "admin"),
-    ("root", "888888"), ("root", "xmhdipc"), ("root", "default"), ("root", "juantech"),
-    ("root", "123456"), ("root", "54321"), ("support", "support"), ("root", ""),
-    ("admin", "password"), ("root", "root"), ("user", "user"), ("admin", "1234"),
-    ("root", "12345"), ("guest", "guest"), ("admin", ""), ("root", "pass"),
+    ("root", "xc3511"),
+    ("root", "vizxv"),
+    ("root", "admin"),
+    ("admin", "admin"),
+    ("root", "888888"),
+    ("root", "xmhdipc"),
+    ("root", "default"),
+    ("root", "juantech"),
+    ("root", "123456"),
+    ("root", "54321"),
+    ("support", "support"),
+    ("root", ""),
+    ("admin", "password"),
+    ("root", "root"),
+    ("user", "user"),
+    ("admin", "1234"),
+    ("root", "12345"),
+    ("guest", "guest"),
+    ("admin", ""),
+    ("root", "pass"),
 }
 
 
@@ -135,10 +150,8 @@ class TelnetService(BaseService):
     ) -> str | None:
         """Read one line, stripping telnet control bytes."""
         try:
-            raw = await asyncio.wait_for(
-                reader.readline(), timeout=self.settings.read_timeout_s
-            )
-        except (asyncio.TimeoutError, ValueError):
+            raw = await asyncio.wait_for(reader.readline(), timeout=self.settings.read_timeout_s)
+        except (TimeoutError, ValueError):
             return None
         if not raw:
             return None

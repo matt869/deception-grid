@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "honeypot-dashboard"
+version = "1.0.0"
+description = "Multi-service honeypot sensor with an enrichment/detection pipeline and analyst dashboard"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Runtime deps are pinned in requirements.txt; this mirror keeps `pip install .`
+# working. The optional groups match the feature gates in the code.
+dependencies = [
+    "SQLAlchemy>=2.0,<3.0",
+    "PyYAML>=6.0",
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6,<3.0",
+]
+
+[project.optional-dependencies]
+ssh = ["paramiko>=3.4"]
+geo = ["geoip2>=4.8"]
+api = ["python-multipart>=0.0.9"]
+dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.5", "paramiko>=3.4", "python-multipart>=0.0.9"]
+
+[project.scripts]
+honeypot = "honeypot.main:main"
+
+[tool.setuptools.packages.find]
+include = ["honeypot*", "pipeline*", "storage*", "api*", "attacker*", "tools*"]
+
+# --------------------------------------------------------------------------- #
+# Tooling
+# --------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::PendingDeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+# E501: line length handled by the formatter.
+# B008: FastAPI's Depends()/Query() defaults are the framework idiom.
+# UP042: the enums intentionally inherit (str, Enum) rather than StrEnum — the
+#        codebase stores and compares `.value` and relies on that str mixin
+#        behaviour; migrating would be a semantic change, not a cleanup.
+ignore = ["E501", "B008", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"__init__.py" = ["F401"]

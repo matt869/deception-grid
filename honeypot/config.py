@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -110,15 +109,19 @@ class Settings:
     # -- capture ------------------------------------------------------------
     capture_payloads: bool = field(default_factory=lambda: _env_bool("CAPTURE_PAYLOADS", True))
     payload_dir: Path = field(
-        default_factory=lambda: Path(_env_str("PAYLOAD_DIR", str(PROJECT_ROOT / "data" / "payloads")))
+        default_factory=lambda: Path(
+            _env_str("PAYLOAD_DIR", str(PROJECT_ROOT / "data" / "payloads"))
+        )
     )
     # Never store passwords in cleartext? Off by default because credential
     # analysis is the point of this sensor, but regulated deployments flip it.
     hash_passwords: bool = field(default_factory=lambda: _env_bool("HASH_PASSWORDS", False))
 
     # -- storage / logging --------------------------------------------------
-    jsonl_path: Optional[Path] = field(
-        default_factory=lambda: Path(_env_str("JSONL_PATH", str(PROJECT_ROOT / "data" / "events.jsonl")))
+    jsonl_path: Path | None = field(
+        default_factory=lambda: Path(
+            _env_str("JSONL_PATH", str(PROJECT_ROOT / "data" / "events.jsonl"))
+        )
     )
     write_to_db: bool = field(default_factory=lambda: _env_bool("WRITE_TO_DB", True))
     log_level: str = field(default_factory=lambda: _env_str("LOG_LEVEL", "INFO"))

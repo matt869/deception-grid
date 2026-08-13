@@ -1,0 +1,6 @@
+# Put honeypot logs to import here (Cowrie JSON, this project's JSONL, or a
+# Linux auth.log), then:
+#   python -m tools.import_public_logs --format cowrie data/public_logs/<file>
+#
+# Imported data carries real third-party source addresses and often real
+# credentials — handle per FINDINGS.md. Contents are git-ignored.

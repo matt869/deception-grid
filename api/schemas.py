@@ -14,7 +14,7 @@ from the ORM models rather than serialising those directly, for two reasons:
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Generic, Literal, Optional, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -61,30 +61,30 @@ class EventOut(BaseModel):
     severity: str
 
     src_ip: str
-    src_port: Optional[int] = None
-    dst_port: Optional[int] = None
-    session_id: Optional[str] = None
+    src_port: int | None = None
+    dst_port: int | None = None
+    session_id: str | None = None
 
-    username: Optional[str] = None
-    password: Optional[str] = None
-    command: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
+    command: str | None = None
 
-    http_method: Optional[str] = None
-    path: Optional[str] = None
-    user_agent: Optional[str] = None
-    status_code: Optional[int] = None
+    http_method: str | None = None
+    path: str | None = None
+    user_agent: str | None = None
+    status_code: int | None = None
 
     payload_size: int = 0
-    payload_sha256: Optional[str] = None
+    payload_sha256: str | None = None
 
-    country: Optional[str] = None
-    country_name: Optional[str] = None
-    city: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    asn: Optional[int] = None
-    as_org: Optional[str] = None
-    geo_source: Optional[str] = Field(
+    country: str | None = None
+    country_name: str | None = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    asn: int | None = None
+    as_org: str | None = None
+    geo_source: str | None = Field(
         default=None,
         description="Where geo data came from. 'synthetic' means generated demo data, "
         "'unavailable' means no lookup was possible — never treat either as a measurement.",
@@ -103,22 +103,22 @@ class SessionOut(BaseModel):
     sensor: str
     service: str
     src_ip: str
-    src_port: Optional[int] = None
-    dst_port: Optional[int] = None
+    src_port: int | None = None
+    dst_port: int | None = None
 
     started_at: dt.datetime
-    ended_at: Optional[dt.datetime] = None
-    duration_ms: Optional[int] = None
+    ended_at: dt.datetime | None = None
+    duration_ms: int | None = None
 
     event_count: int = 0
     auth_attempts: int = 0
     commands_run: int = 0
     bytes_in: int = 0
 
-    client_banner: Optional[str] = None
-    closed_by: Optional[str] = None
-    country: Optional[str] = None
-    asn: Optional[int] = None
+    client_banner: str | None = None
+    closed_by: str | None = None
+    country: str | None = None
+    asn: int | None = None
 
 
 class SessionDetail(SessionOut):
@@ -149,15 +149,15 @@ class AttackerOut(BaseModel):
     top_passwords: list[str] = Field(default_factory=list)
     top_paths: list[str] = Field(default_factory=list)
 
-    country: Optional[str] = None
-    country_name: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    asn: Optional[int] = None
-    as_org: Optional[str] = None
+    country: str | None = None
+    country_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    asn: int | None = None
+    as_org: str | None = None
 
     threat_score: float = 0.0
-    classification: Optional[str] = None
+    classification: str | None = None
     tags: list[str] = Field(default_factory=list)
     updated_at: dt.datetime
 
@@ -189,7 +189,7 @@ class ScoreExplanation(BaseModel):
 class AttackerDetail(AttackerOut):
     sessions: list[SessionOut] = Field(default_factory=list)
     recent_events: list[EventOut] = Field(default_factory=list)
-    score_explanation: Optional[ScoreExplanation] = None
+    score_explanation: ScoreExplanation | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -205,12 +205,12 @@ class AlertOut(BaseModel):
     rule_name: str
     severity: str
 
-    src_ip: Optional[str] = None
-    session_id: Optional[str] = None
-    service: Optional[str] = None
+    src_ip: str | None = None
+    session_id: str | None = None
+    service: str | None = None
 
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     evidence: dict[str, Any] = Field(default_factory=dict)
     mitre: list[str] = Field(default_factory=list)
 
@@ -219,12 +219,12 @@ class AlertOut(BaseModel):
     hit_count: int = 1
 
     status: str
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class AlertStatusUpdate(BaseModel):
     status: Literal["new", "acknowledged", "closed"]
-    notes: Optional[str] = Field(default=None, max_length=4000)
+    notes: str | None = Field(default=None, max_length=4000)
 
 
 class RuleOut(BaseModel):
@@ -237,7 +237,7 @@ class RuleOut(BaseModel):
     window_minutes: int
     group_by: str
     threshold: float
-    distinct_field: Optional[str] = None
+    distinct_field: str | None = None
     mitre: list[str] = Field(default_factory=list)
 
 
@@ -247,7 +247,7 @@ class RuleOut(BaseModel):
 
 
 class SummaryStats(BaseModel):
-    window_hours: Optional[float] = None
+    window_hours: float | None = None
     total_events: int
     unique_attackers: int
     unique_countries: int
@@ -282,20 +282,20 @@ class Heatmap(BaseModel):
 
 
 class CountRow(BaseModel):
-    value: Optional[str] = None
+    value: str | None = None
     count: int
 
 
 class CountryRow(BaseModel):
-    country: Optional[str] = None
-    country_name: Optional[str] = None
+    country: str | None = None
+    country_name: str | None = None
     events: int
     attackers: int
 
 
 class AsnRow(BaseModel):
-    asn: Optional[int] = None
-    as_org: Optional[str] = None
+    asn: int | None = None
+    as_org: str | None = None
     events: int
     attackers: int
 
@@ -307,8 +307,8 @@ class ServiceRow(BaseModel):
 
 
 class CredentialPair(BaseModel):
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
     count: int
 
 
@@ -316,7 +316,7 @@ class HealthOut(BaseModel):
     status: Literal["ok", "degraded"]
     database: bool
     events_total: int
-    latest_event: Optional[dt.datetime] = None
+    latest_event: dt.datetime | None = None
     rules_loaded: int
     geoip_available: bool
     version: str
@@ -327,16 +327,16 @@ class EnrichmentOut(BaseModel):
 
     src_ip: str
     valid: bool
-    scope: Optional[str] = None
-    country: Optional[str] = None
-    country_name: Optional[str] = None
-    city: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    geo_source: Optional[str] = None
-    asn: Optional[int] = None
-    as_org: Optional[str] = None
-    asn_source: Optional[str] = None
+    scope: str | None = None
+    country: str | None = None
+    country_name: str | None = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    geo_source: str | None = None
+    asn: int | None = None
+    as_org: str | None = None
+    asn_source: str | None = None
     threat_score: float = 0.0
     threat_tags: list[str] = Field(default_factory=list)
 

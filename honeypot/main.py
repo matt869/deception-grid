@@ -39,9 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--persona", help="override HONEYPOT_PERSONA for this run")
     parser.add_argument("--bind", help="override the bind address")
     parser.add_argument("--log-level", default=None, help="DEBUG, INFO, WARNING, ERROR")
-    parser.add_argument(
-        "--no-db", action="store_true", help="write JSONL only, skip the database"
-    )
+    parser.add_argument("--no-db", action="store_true", help="write JSONL only, skip the database")
     parser.add_argument("--list-personas", action="store_true", help="print personas and exit")
     parser.add_argument(
         "--check", action="store_true", help="validate configuration and exit without listening"
