@@ -8,9 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# psycopg2-binary is the PostgreSQL driver SQLAlchemy needs for the
+# docker-compose default DATABASE_URL (postgresql://); unused under SQLite.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir \
-      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" \
+      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" "psycopg2-binary>=2.9" \
       "fastapi>=0.110,<1.0" "uvicorn[standard]>=0.29" \
       "pydantic>=2.6,<3.0" "python-multipart>=0.0.9"
 

@@ -21,3 +21,8 @@ geoip2>=4.8 ; extra == "geo"
 
 # HTTP form parsing for the API's multipart paths.
 python-multipart>=0.0.9 ; extra == "api"
+
+# PostgreSQL driver. Required only when DATABASE_URL is postgresql:// (the
+# docker-compose default); SQLite needs nothing. Installed in the API and
+# sensor images for that reason.
+psycopg2-binary>=2.9 ; extra == "postgres"
