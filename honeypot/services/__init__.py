@@ -3,6 +3,8 @@
 from honeypot.services.base import BaseService
 from honeypot.services.ftp_service import FTPService
 from honeypot.services.http_service import HTTPService
+from honeypot.services.mysql_service import MySQLService
+from honeypot.services.redis_service import RedisService
 from honeypot.services.ssh_service import SSHService
 from honeypot.services.telnet_service import TelnetService
 
@@ -12,6 +14,8 @@ SERVICE_REGISTRY: dict[str, type[BaseService]] = {
     "telnet": TelnetService,
     "ftp": FTPService,
     "http": HTTPService,
+    "redis": RedisService,
+    "mysql": MySQLService,
 }
 
 __all__ = [
@@ -20,5 +24,7 @@ __all__ = [
     "TelnetService",
     "FTPService",
     "HTTPService",
+    "RedisService",
+    "MySQLService",
     "SERVICE_REGISTRY",
 ]

@@ -292,3 +292,72 @@ def test_safe_headers_truncates():
     safe = _safe_headers(huge)
     assert len(safe["x-big"]) <= 1024
     assert safe["normal"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# Redis / MySQL bait
+# --------------------------------------------------------------------------- #
+
+
+class TestRedisReplies:
+    def _svc(self):
+        from honeypot.config import Settings
+        from honeypot.logger import EventLogger
+        from honeypot.services.redis_service import RedisService
+        from honeypot.session import SessionRegistry
+
+        s = Settings()
+        s.write_to_db = False
+        s.jsonl_path = None
+        return RedisService(s, EventLogger(s), SessionRegistry(s), port=6379)
+
+    def test_ping(self):
+        assert self._svc()._reply("ping", []) == "+PONG\r\n"
+
+    def test_info_is_bulk_string(self):
+        reply = self._svc()._reply("info", [])
+        assert reply.startswith("$") and "redis_version" in reply
+
+    def test_get_is_nil(self):
+        assert self._svc()._reply("get", ["k"]) == "$-1\r\n"
+
+    def test_dangerous_commands_are_catalogued(self):
+        from honeypot.services.redis_service import DANGEROUS
+
+        for verb in ("config", "slaveof", "module", "eval"):
+            assert verb in DANGEROUS
+
+    def test_command_is_truncated_for_storage(self):
+        svc = self._svc()
+        out = svc._safe_command(["SET", "k", "A" * 5000])
+        assert len(out) <= 2048
+
+
+class TestMySQLHandshake:
+    def test_handshake_is_wellformed(self):
+        from honeypot.services.mysql_service import build_handshake
+
+        pkt = build_handshake()
+        # 4-byte header, protocol version 10, server version string present
+        assert pkt[3] == 0  # sequence 0
+        assert pkt[4] == 0x0A  # protocol v10
+        assert b"8.0.36" in pkt
+
+    def test_parse_username_from_login(self):
+        from honeypot.services.mysql_service import parse_login_username
+
+        # header(4) + caps(4) + maxpacket(4) + charset(1) + reserved(23) + "root\0"
+        packet = (
+            b"\x00\x00\x00\x01"
+            + b"\x00" * 4
+            + b"\x00" * 4
+            + b"\x21"
+            + b"\x00" * 23
+            + b"root\x00rest"
+        )
+        assert parse_login_username(packet) == "root"
+
+    def test_parse_username_handles_garbage(self):
+        from honeypot.services.mysql_service import parse_login_username
+
+        assert parse_login_username(b"\x00\x00") is None

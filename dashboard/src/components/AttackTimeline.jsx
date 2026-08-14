@@ -10,7 +10,7 @@ import { useTooltip } from "./Tooltip.jsx";
  * grid, a crosshair + tooltip on hover, and colour that follows the service
  * (fixed slot order) rather than its stack position.
  */
-const SERVICES = ["ssh", "telnet", "ftp", "http"];
+const SERVICES = ["ssh", "telnet", "ftp", "http", "redis", "mysql"];
 const PAD = { top: 12, right: 16, bottom: 26, left: 44 };
 
 export default function AttackTimeline({ data, height = 260 }) {

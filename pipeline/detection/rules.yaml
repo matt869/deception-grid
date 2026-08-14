@@ -325,3 +325,47 @@ rules:
     description: >
       A method outside the common set was used — often a probe for WebDAV or a
       misconfigured proxy.
+
+  # ------------------------------------------------------------------ #
+  # Datastore bait (Redis / MySQL)
+  # ------------------------------------------------------------------ #
+
+  - id: redis_rce_attempt
+    name: Redis RCE / persistence attempt
+    severity: critical
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: redis-rce-payload
+    mitre: [T1059, T1053.003]
+    description: >
+      A Redis SET wrote an SSH key or cron line — the payload half of the classic
+      unauthenticated-Redis code-execution chain (CONFIG SET dir + SET + SAVE).
+
+  - id: redis_dangerous_command
+    name: Redis dangerous command
+    severity: high
+    type: match
+    window_minutes: 60
+    group_by: src_ip
+    where:
+      tags__in_tags: redis-dangerous
+    mitre: [T1059]
+    description: >
+      A high-risk Redis command (CONFIG, SLAVEOF/REPLICAOF, MODULE LOAD, EVAL,
+      SAVE) was issued against the bait — reconnaissance for, or execution of,
+      the Redis takeover technique.
+
+  - id: mysql_bruteforce
+    name: MySQL brute-force
+    severity: high
+    type: threshold
+    window_minutes: 10
+    group_by: src_ip
+    threshold: 10
+    where:
+      service: mysql
+      event_type: auth_attempt
+    mitre: [T1110.001]
+    description: Repeated MySQL login attempts from one source.

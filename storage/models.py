@@ -73,6 +73,8 @@ class Service(str, enum.Enum):
     TELNET = "telnet"
     FTP = "ftp"
     HTTP = "http"
+    REDIS = "redis"
+    MYSQL = "mysql"
 
 
 class EventType(str, enum.Enum):

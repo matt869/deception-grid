@@ -19,7 +19,8 @@ WORKDIR /app
 # licensed database) and is added at deploy time if a GeoLite2 .mmdb is present.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir \
-      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" "psycopg2-binary>=2.9" "paramiko>=3.4"
+      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" "psycopg2-binary>=2.9" \
+      "paramiko>=3.4" "geoip2>=4.8"
 
 # Source. Only what the sensor process needs at runtime.
 COPY honeypot/ ./honeypot/

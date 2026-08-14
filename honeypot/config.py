@@ -78,6 +78,10 @@ class Settings:
     ftp_port: int = field(default_factory=lambda: _env_int("FTP_PORT", 2121))
     http_enabled: bool = field(default_factory=lambda: _env_bool("HTTP_ENABLED", True))
     http_port: int = field(default_factory=lambda: _env_int("HTTP_PORT", 8081))
+    redis_enabled: bool = field(default_factory=lambda: _env_bool("REDIS_ENABLED", True))
+    redis_port: int = field(default_factory=lambda: _env_int("REDIS_PORT", 6379))
+    mysql_enabled: bool = field(default_factory=lambda: _env_bool("MYSQL_ENABLED", True))
+    mysql_port: int = field(default_factory=lambda: _env_int("MYSQL_PORT", 3306))
 
     # -- deception ----------------------------------------------------------
     # The persona every service presents. See honeypot/deception/banners.py.
@@ -137,6 +141,8 @@ class Settings:
             ServiceConfig("telnet", self.telnet_enabled, self.telnet_port),
             ServiceConfig("ftp", self.ftp_enabled, self.ftp_port),
             ServiceConfig("http", self.http_enabled, self.http_port),
+            ServiceConfig("redis", self.redis_enabled, self.redis_port),
+            ServiceConfig("mysql", self.mysql_enabled, self.mysql_port),
         ]
 
     def enabled_services(self) -> list[ServiceConfig]:

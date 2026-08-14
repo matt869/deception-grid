@@ -80,6 +80,8 @@ export default function LiveFeed() {
             <option value="telnet">Telnet</option>
             <option value="ftp">FTP</option>
             <option value="http">HTTP</option>
+            <option value="redis">Redis</option>
+            <option value="mysql">MySQL</option>
           </select>
           <select value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
             <option value="">Any severity</option>

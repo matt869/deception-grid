@@ -25,6 +25,8 @@
   --svc-telnet: #eb6834;
   --svc-ftp: #1baf7a;
   --svc-http: #eda100;
+  --svc-redis: #e87ba4;
+  --svc-mysql: #4a3aa7;
   --series-5: #e87ba4;
 
   /* status / severity (reserved) */
@@ -58,6 +60,8 @@
   --svc-telnet: #d95926;
   --svc-ftp: #199e70;
   --svc-http: #c98500;
+  --svc-redis: #d55181;
+  --svc-mysql: #9085e9;
   --series-5: #d55181;
 
   --sev-info: #8b8a80;

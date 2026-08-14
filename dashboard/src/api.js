@@ -74,6 +74,8 @@ export const SERVICE_COLORS = {
   telnet: "var(--svc-telnet)",
   ftp: "var(--svc-ftp)",
   http: "var(--svc-http)",
+  redis: "var(--svc-redis)",
+  mysql: "var(--svc-mysql)",
 };
 
 export const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"];
