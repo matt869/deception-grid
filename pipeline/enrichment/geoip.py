@@ -31,7 +31,11 @@ log = logging.getLogger("pipeline.geoip")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 GEOLITE_DIR = PROJECT_ROOT / "data" / "geolite2"
+# Recognised city databases, checked in order. DB-IP Lite is the no-account,
+# no-license-key alternative to MaxMind GeoLite2 — same MMDB format, so the
+# geoip2 reader opens it unchanged.
 CITY_DB_NAMES = ("GeoLite2-City.mmdb", "GeoIP2-City.mmdb")
+CITY_DB_GLOBS = ("dbip-city-lite-*.mmdb", "dbip-city-*.mmdb", "*city*.mmdb")
 
 _reader = None
 _reader_lock = threading.Lock()
@@ -55,22 +59,35 @@ def _get_reader():
             log.info("geoip2 not installed; geolocation disabled")
             return None
 
-        for name in CITY_DB_NAMES:
-            path = GEOLITE_DIR / name
-            if path.exists():
-                try:
-                    _reader = geoip2.database.Reader(str(path))
-                    log.info("geolocation enabled using %s", path.name)
-                    return _reader
-                except Exception as exc:  # pragma: no cover - corrupt db
-                    log.warning("could not open %s: %s", path, exc)
+        for path in _candidate_city_dbs():
+            try:
+                _reader = geoip2.database.Reader(str(path))
+                log.info("geolocation enabled using %s", path.name)
+                return _reader
+            except Exception as exc:  # pragma: no cover - corrupt db
+                log.warning("could not open %s: %s", path, exc)
 
         log.info(
-            "no GeoLite2 database found in %s; geolocation disabled "
-            "(see docs — the database is not redistributed with this project)",
+            "no city database found in %s; geolocation disabled "
+            "(drop a MaxMind GeoLite2-City.mmdb or a free DB-IP dbip-city-lite-*.mmdb here)",
             GEOLITE_DIR,
         )
         return None
+
+
+def _candidate_city_dbs() -> list[Path]:
+    """City databases present in the geolite2 dir, fixed names before globs."""
+    candidates: list[Path] = []
+    for name in CITY_DB_NAMES:
+        path = GEOLITE_DIR / name
+        if path.exists():
+            candidates.append(path)
+    if GEOLITE_DIR.is_dir():
+        for pattern in CITY_DB_GLOBS:
+            for path in sorted(GEOLITE_DIR.glob(pattern), reverse=True):
+                if path not in candidates and "asn" not in path.name.lower():
+                    candidates.append(path)
+    return candidates
 
 
 # --------------------------------------------------------------------------- #

@@ -31,6 +31,8 @@ log = logging.getLogger("pipeline.asn")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 GEOLITE_DIR = PROJECT_ROOT / "data" / "geolite2"
 ASN_DB_NAME = "GeoLite2-ASN.mmdb"
+# DB-IP Lite ASN is the free, no-key alternative to GeoLite2-ASN (same format).
+ASN_DB_GLOBS = ("dbip-asn-lite-*.mmdb", "dbip-asn-*.mmdb")
 PREFIX_TABLE = PROJECT_ROOT / "data" / "asn_prefixes.tsv"
 
 _reader = None
@@ -95,11 +97,19 @@ def _get_reader():
             import geoip2.database
         except ImportError:
             return None
-        path = GEOLITE_DIR / ASN_DB_NAME
-        if not path.exists():
+        path = None
+        fixed = GEOLITE_DIR / ASN_DB_NAME
+        if fixed.exists():
+            path = fixed
+        elif GEOLITE_DIR.is_dir():
+            for pattern in ASN_DB_GLOBS:
+                matches = sorted(GEOLITE_DIR.glob(pattern), reverse=True)
+                if matches:
+                    path = matches[0]
+                    break
+        if path is None:
             log.info(
-                "no %s found in %s; ASN lookup falls back to the prefix table",
-                ASN_DB_NAME,
+                "no ASN database found in %s; ASN lookup falls back to the prefix table",
                 GEOLITE_DIR,
             )
             return None

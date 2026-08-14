@@ -196,27 +196,35 @@ intended security posture.
 
 ---
 
-## Optional: light up the world map (GeoLite2)
+## Optional: light up the world map
 
-Geolocation is off until you supply a **MaxMind GeoLite2** database — it's free
-but licensed, so it can't ship in the repo. With a free MaxMind account and
-license key:
+Geolocation is off until a city/ASN database is present. Two ways to get one —
+the second needs **no account and no license key**:
+
+**Option A — DB-IP Lite (free, no key, recommended).** DB-IP publishes a monthly
+City + ASN database in the same MMDB format, under CC-BY. The code recognises
+`dbip-city-lite-*.mmdb` / `dbip-asn-lite-*.mmdb` automatically:
 
 ```bash
-# on the VM
+# on the VM, in ~/honeypot-dashboard  (adjust YYYY-MM to the current month)
+M=$(date +%Y-%m)
+curl -fSL "https://download.db-ip.com/free/dbip-city-lite-$M.mmdb.gz" | gunzip > data/geolite2/dbip-city-lite-$M.mmdb
+curl -fSL "https://download.db-ip.com/free/dbip-asn-lite-$M.mmdb.gz"  | gunzip > data/geolite2/dbip-asn-lite-$M.mmdb
+sudo docker compose restart sensor api      # geoip2 is already in the image
+```
+
+**Option B — MaxMind GeoLite2 (free, needs an account + license key).**
+
+```bash
 KEY=<your_maxmind_license_key>
 curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=$KEY&suffix=tar.gz" \
   | tar -xz --strip-components=1 -C data/geolite2 --wildcards '*/GeoLite2-City.mmdb'
-curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=$KEY&suffix=tar.gz" \
-  | tar -xz --strip-components=1 -C data/geolite2 --wildcards '*/GeoLite2-ASN.mmdb'
-
-# rebuild the sensor so geoip2 gets installed, then restart
-sed -i 's#"paramiko>=3.4"#"paramiko>=3.4" "geoip2>=4.8"#' honeypot/Dockerfile
-sudo docker compose up -d --build sensor api
+sudo docker compose restart sensor api
 ```
 
-Country/city/ASN and the map populate from the next events on. Until then, geo
-fields read `unavailable` — the sensor never guesses a location.
+Either way, country/city/ASN and the world map populate from the next events on.
+Until a database is present, geo fields read `unavailable` — the sensor never
+guesses a location.
 
 ---
 
