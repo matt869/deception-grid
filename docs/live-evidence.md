@@ -11,6 +11,26 @@ enriches, detects, scores and visualises real attacker activity.
   reached only through an SSH tunnel
 - **Automation:** detection + attacker scoring re-run every 5 minutes via cron
 
+## Operational upgrades (live)
+
+Beyond the base sensor, the deployment runs as a full operational system:
+
+- **Six bait services** — SSH, Telnet, FTP, HTTP, **Redis**, **MySQL**. The Redis
+  emulator captures the unauthenticated-RCE chain (`CONFIG SET`, `SLAVEOF`,
+  `MODULE LOAD`, SSH-key/cron `SET` payloads) and MySQL captures login usernames
+  — both executing nothing. New rules `redis_rce_attempt`,
+  `redis_dangerous_command`, `mysql_bruteforce` fire on them.
+- **Real-time alerting** — newly-raised high/critical alerts push to a
+  Slack/Discord/Teams/webhook (idempotent, severity-gated, rate-capped).
+- **Threat intelligence** — **159,821 indicators** loaded from blocklist.de,
+  ipsum and FireHOL level-1; enrichment now scores known-bad sources (verified:
+  a feed IP resolves to score 80 with tags `ti:blocklist-de, ti:ipsum`).
+  Refreshed weekly.
+- **IOC output** — `/api/export/{blocklist,stix,misp}` serve deployable
+  indicators; an hourly cron writes `exports/blocklist.txt` and a STIX bundle.
+- **Hardening** — nightly PostgreSQL backups (7-day rotation), 45-day event
+  retention pruning, and `fail2ban` guarding the admin SSH port behind the NSG.
+
 ## Live metrics (24h window)
 
 | Metric | Value |

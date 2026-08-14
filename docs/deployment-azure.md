@@ -19,7 +19,11 @@ In the Azure portal, on the VM's NSG, create two inbound rules:
 | Priority | Name | Source | Dest ports | Protocol | Action |
 |---------:|------|--------|-----------|----------|--------|
 | 300 | `Allow-Admin-SSH-62222` | **My IP** (your workstation) | `62222` | TCP | Allow |
-| 310 | `Allow-Honeypot-Public` | `Any` | `22,23,80,21` | TCP | Allow |
+| 310 | `Allow-Honeypot-Public` | `Any` | `22,23,80,21,6379,3306` | TCP | Allow |
+
+Ports `6379` (Redis) and `3306` (MySQL) are the datastore bait — include them in
+rule 310 (or add a second rule) so those services actually receive traffic. They
+run inside the sensor either way, but the NSG must let the internet reach them.
 
 **The admin rule's Source must be your own workstation IP — never `Any`.** An
 admin SSH port open to the world defeats the point of moving it. Leave the
@@ -144,6 +148,39 @@ Detection now runs every 5 minutes. Trigger it once immediately:
 ```bash
 ~/honeypot-cron.sh && echo "first detection run done"
 ```
+
+## 6b. Operational upgrades (optional but recommended)
+
+**Real-time alerting** — set a webhook so new high-severity alerts page you.
+Create a `.env` next to `docker-compose.yml` and recreate the API:
+
+```bash
+echo 'ALERT_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ' >> .env
+echo 'ALERT_MIN_SEVERITY=high' >> .env
+sudo docker compose up -d api
+```
+
+Slack/Discord/Teams/generic are auto-detected from the URL.
+
+**Threat-intel feeds** — load real blocklists so `known-bad`/high-score matches
+fire (the sensor mounts `data/indicators/` read-only; a weekly cron refreshes):
+
+```bash
+python3 -m tools.refresh_indicators --defaults   # blocklist.de + ipsum + firehol
+sudo docker compose restart sensor               # pick up the new indicators
+```
+
+**IOC export** — pull deployable indicators any time (also written hourly to
+`exports/` by cron):
+
+```bash
+curl "http://localhost:8080/api/export/blocklist?min_score=60"
+curl "http://localhost:8080/api/export/stix?min_score=60"
+```
+
+**Backups / retention / fail2ban** — nightly `pg_dump` (7-day rotation), 45-day
+event pruning, and a `fail2ban` sshd jail on port 62222 are installed as host
+cron jobs and a systemd service. Adjust the schedules in `crontab -l`.
 
 ## 7. View the dashboard (SSH tunnel)
 
