@@ -12,14 +12,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Only the runtime deps the sensor and pipeline actually import. psycopg2-binary
-# is the PostgreSQL driver SQLAlchemy needs when DATABASE_URL is postgresql://
-# (docker-compose default); with SQLite it is unused but harmless. paramiko and
-# geoip2 are optional; add them here if you want SSH credential capture or
-# geolocation inside the container.
+# Runtime deps. psycopg2-binary is the PostgreSQL driver SQLAlchemy needs for
+# the docker-compose default DATABASE_URL (postgresql://). paramiko enables SSH
+# "full mode" — completing the handshake to capture passwords and public-key
+# attempts, rather than fingerprint-only. geoip2 stays optional (needs a
+# licensed database) and is added at deploy time if a GeoLite2 .mmdb is present.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir \
-      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" "psycopg2-binary>=2.9"
+      "SQLAlchemy>=2.0,<3.0" "PyYAML>=6.0" "psycopg2-binary>=2.9" "paramiko>=3.4"
 
 # Source. Only what the sensor process needs at runtime.
 COPY honeypot/ ./honeypot/

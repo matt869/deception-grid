@@ -166,6 +166,10 @@ start** with a wildcard CORS origin unless you set `API_ALLOW_INSECURE=1`. A
 wildcard origin on an unauthenticated API lets any site the analyst visits read
 captured credentials out of their browser; don't do it on an exposed host.
 
+For a full cloud deployment walkthrough — Azure VM, bait on real ports
+22/23/80/21, admin SSH relocated, dashboard reached only via SSH tunnel, and
+automatic detection/scoring — see [docs/deployment-azure.md](docs/deployment-azure.md).
+
 ---
 
 ## Development
