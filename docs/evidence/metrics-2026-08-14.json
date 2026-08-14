@@ -1,0 +1,381 @@
+{
+  "captured_at": "2026-08-14T11:30:22.398418Z",
+  "deployment": "Azure Ubuntu 22.04 VM, Docker Compose (sensor/api/dashboard/db)",
+  "health": {
+    "status": "ok",
+    "database": true,
+    "events_total": 2871,
+    "latest_event": "2026-08-14T11:30:22.398418Z",
+    "rules_loaded": 24,
+    "geoip_available": true,
+    "version": "1.0.0"
+  },
+  "summary": {
+    "window_hours": 24.0,
+    "total_events": 2871,
+    "unique_attackers": 37,
+    "unique_countries": 7,
+    "sessions": 609,
+    "auth_attempts": 202,
+    "unique_credential_pairs": 57,
+    "commands_run": 1048,
+    "open_alerts": 202,
+    "critical_alerts": 188,
+    "generated_at": "2026-08-14T11:30:26.362080+00:00"
+  },
+  "services": [
+    {
+      "service": "telnet",
+      "events": 1695,
+      "attackers": 18
+    },
+    {
+      "service": "http",
+      "events": 739,
+      "attackers": 9
+    },
+    {
+      "service": "ssh",
+      "events": 312,
+      "attackers": 13
+    },
+    {
+      "service": "redis",
+      "events": 70,
+      "attackers": 1
+    },
+    {
+      "service": "mysql",
+      "events": 55,
+      "attackers": 3
+    }
+  ],
+  "alerts_by_rule": [
+    {
+      "rule_id": "high_volume_source",
+      "rule_name": "High-volume source",
+      "hits": 936
+    },
+    {
+      "rule_id": "high_threat_score_source",
+      "rule_name": "High enrichment threat score",
+      "hits": 214
+    },
+    {
+      "rule_id": "mirai_signature",
+      "rule_name": "Mirai-family command signature",
+      "hits": 198
+    },
+    {
+      "rule_id": "shell_access_granted",
+      "rule_name": "Interactive shell obtained",
+      "hits": 157
+    },
+    {
+      "rule_id": "web_path_scan",
+      "rule_name": "Web path enumeration",
+      "hits": 137
+    },
+    {
+      "rule_id": "iot_default_credentials",
+      "rule_name": "IoT default credentials used",
+      "hits": 124
+    },
+    {
+      "rule_id": "telnet_bruteforce",
+      "rule_name": "Telnet brute-force",
+      "hits": 70
+    },
+    {
+      "rule_id": "payload_download_attempt",
+      "rule_name": "Second-stage payload fetch",
+      "hits": 50
+    },
+    {
+      "rule_id": "shellshock_attempt",
+      "rule_name": "Shellshock exploitation attempt",
+      "hits": 25
+    },
+    {
+      "rule_id": "redis_dangerous_command",
+      "rule_name": "Redis dangerous command",
+      "hits": 24
+    },
+    {
+      "rule_id": "secret_file_probe",
+      "rule_name": "Exposed secret file probe",
+      "hits": 15
+    },
+    {
+      "rule_id": "mysql_bruteforce",
+      "rule_name": "MySQL brute-force",
+      "hits": 10
+    },
+    {
+      "rule_id": "multi_service_sweep",
+      "rule_name": "Multi-service sweep",
+      "hits": 9
+    },
+    {
+      "rule_id": "redis_rce_attempt",
+      "rule_name": "Redis RCE / persistence attempt",
+      "hits": 6
+    },
+    {
+      "rule_id": "log4shell_attempt",
+      "rule_name": "Log4Shell (JNDI) exploitation attempt",
+      "hits": 5
+    },
+    {
+      "rule_id": "path_traversal",
+      "rule_name": "Path traversal attempt",
+      "hits": 5
+    },
+    {
+      "rule_id": "webshell_upload",
+      "rule_name": "Webshell upload attempt",
+      "hits": 5
+    }
+  ],
+  "top_countries": [
+    {
+      "country": "PH",
+      "country_name": "Philippines",
+      "events": 496,
+      "attackers": 1
+    },
+    {
+      "country": "KR",
+      "country_name": "South Korea",
+      "events": 50,
+      "attackers": 1
+    },
+    {
+      "country": "HK",
+      "country_name": "Hong Kong",
+      "events": 21,
+      "attackers": 1
+    },
+    {
+      "country": "CN",
+      "country_name": "China",
+      "events": 16,
+      "attackers": 2
+    },
+    {
+      "country": "IN",
+      "country_name": "India",
+      "events": 14,
+      "attackers": 1
+    },
+    {
+      "country": "US",
+      "country_name": "United States",
+      "events": 13,
+      "attackers": 3
+    },
+    {
+      "country": "NL",
+      "country_name": "The Netherlands",
+      "events": 9,
+      "attackers": 1
+    }
+  ],
+  "top_asns": [
+    {
+      "asn": 17639,
+      "as_org": "ComClark Network & Technology Corp",
+      "events": 496,
+      "attackers": 1
+    },
+    {
+      "asn": 17858,
+      "as_org": "LG POWERCOMM",
+      "events": 50,
+      "attackers": 1
+    },
+    {
+      "asn": 135357,
+      "as_org": "HONG KONG KOWLOON TELECOMMUNICATIONS CO.,LIMITED",
+      "events": 21,
+      "attackers": 1
+    },
+    {
+      "asn": 133296,
+      "as_org": "Web Werks India Pvt. Ltd.",
+      "events": 14,
+      "attackers": 1
+    },
+    {
+      "asn": 4837,
+      "as_org": "CHINA UNICOM China169 Backbone",
+      "events": 13,
+      "attackers": 1
+    },
+    {
+      "asn": 47890,
+      "as_org": "UNMANAGED LTD",
+      "events": 9,
+      "attackers": 1
+    },
+    {
+      "asn": 6939,
+      "as_org": "Hurricane Electric LLC",
+      "events": 9,
+      "attackers": 1
+    },
+    {
+      "asn": 136180,
+      "as_org": "Beijing Tiantexin Tech. Co., Ltd.",
+      "events": 3,
+      "attackers": 1
+    }
+  ],
+  "top_attackers": [
+    {
+      "src_ip": "172.18.0.1",
+      "country": null,
+      "country_name": null,
+      "asn": null,
+      "as_org": null,
+      "threat_score": 100.0,
+      "classification": "botnet-loader",
+      "event_count": 115,
+      "services": [
+        "http",
+        "mysql",
+        "redis",
+        "telnet"
+      ],
+      "tags": [
+        "ti:firehol-level1",
+        "tool:curl",
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "136.158.56.92",
+      "country": "PH",
+      "country_name": "Philippines",
+      "asn": 17639,
+      "as_org": "ComClark Network & Technology Corp",
+      "threat_score": 100.0,
+      "classification": "botnet-loader",
+      "event_count": 1442,
+      "services": [
+        "http",
+        "ssh",
+        "telnet"
+      ],
+      "tags": [
+        "scanner:nuclei",
+        "tool:curl",
+        "env-file-probe",
+        "log4shell",
+        "path-traversal",
+        "shellshock",
+        "webshell-upload",
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "103.131.61.163",
+      "country": null,
+      "country_name": null,
+      "asn": null,
+      "as_org": null,
+      "threat_score": 99.98,
+      "classification": "botnet-loader",
+      "event_count": 657,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "ti:ipsum",
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "112.156.166.41",
+      "country": "KR",
+      "country_name": "South Korea",
+      "asn": 17858,
+      "as_org": "LG POWERCOMM",
+      "threat_score": 93.58,
+      "classification": "botnet-loader",
+      "event_count": 50,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "ti:ipsum",
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "206.183.111.36",
+      "country": "IN",
+      "country_name": "India",
+      "asn": 133296,
+      "as_org": "Web Werks India Pvt. Ltd.",
+      "threat_score": 91.85,
+      "classification": "botnet-loader",
+      "event_count": 26,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "ti:ipsum",
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "209.141.46.66",
+      "country": null,
+      "country_name": null,
+      "asn": null,
+      "as_org": null,
+      "threat_score": 89.68,
+      "classification": "botnet-loader",
+      "event_count": 201,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "139.135.44.67",
+      "country": null,
+      "country_name": null,
+      "asn": null,
+      "as_org": null,
+      "threat_score": 87.63,
+      "classification": "botnet-loader",
+      "event_count": 135,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "iot-botnet"
+      ]
+    },
+    {
+      "src_ip": "79.177.159.57",
+      "country": null,
+      "country_name": null,
+      "asn": null,
+      "as_org": null,
+      "threat_score": 57.57,
+      "classification": "botnet-loader",
+      "event_count": 12,
+      "services": [
+        "telnet"
+      ],
+      "tags": [
+        "iot-botnet"
+      ]
+    }
+  ]
+}
