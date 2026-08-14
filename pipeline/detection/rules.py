@@ -386,11 +386,19 @@ def evaluate_rules(
 # --------------------------------------------------------------------------- #
 
 
-def persist_alerts(db, alert_dicts: Iterable[dict[str, Any]]) -> tuple[int, int]:
-    """Upsert alerts by ``dedupe_key``. Returns ``(created, updated)``."""
+def persist_alerts(
+    db, alert_dicts: Iterable[dict[str, Any]]
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Upsert alerts by ``dedupe_key``.
+
+    Returns ``(created, updated, created_payloads)``. The third element is the
+    list of alerts that were *newly* created this run — the pipeline notifies on
+    exactly those, so repeated idempotent runs don't re-page.
+    """
     from sqlalchemy import select
 
     created = updated = 0
+    created_payloads: list[dict[str, Any]] = []
     for payload in alert_dicts:
         existing = db.execute(
             select(Alert).where(Alert.dedupe_key == payload["dedupe_key"])
@@ -399,6 +407,7 @@ def persist_alerts(db, alert_dicts: Iterable[dict[str, Any]]) -> tuple[int, int]
         if existing is None:
             db.add(Alert(**payload))
             created += 1
+            created_payloads.append(payload)
             continue
 
         # hit_count takes the max, not a sum. With sliding-window evaluation the
@@ -418,7 +427,7 @@ def persist_alerts(db, alert_dicts: Iterable[dict[str, Any]]) -> tuple[int, int]
         updated += 1
 
     db.flush()
-    return created, updated
+    return created, updated, created_payloads
 
 
 def run_detection(
@@ -436,14 +445,25 @@ def run_detection(
 
     active = list(rules) if rules is not None else load_rules()
     alert_dicts = evaluate_rules(events, active)
-    created, updated = persist_alerts(db, alert_dicts)
+    created, updated, created_payloads = persist_alerts(db, alert_dicts)
+
+    # Push notifications for newly-raised alerts only (best-effort, never fatal).
+    notify_stats = {"enabled": 0, "sent": 0, "failed": 0}
+    if created_payloads:
+        try:
+            from pipeline.alerting import notify_new_alerts
+
+            notify_stats = notify_new_alerts(created_payloads)
+        except Exception as exc:  # noqa: BLE001 - notifications must never break detection
+            log.warning("alert notification dispatch failed: %s", exc)
 
     log.info(
-        "detection over %d events: %d alerts (%d new, %d updated)",
+        "detection over %d events: %d alerts (%d new, %d updated); notified=%d",
         len(events),
         len(alert_dicts),
         created,
         updated,
+        notify_stats.get("sent", 0),
     )
     return {
         "events_evaluated": len(events),
@@ -451,6 +471,7 @@ def run_detection(
         "alerts_generated": len(alert_dicts),
         "alerts_created": created,
         "alerts_updated": updated,
+        "notifications_sent": notify_stats.get("sent", 0),
         "window_hours": since_hours,
     }
 
