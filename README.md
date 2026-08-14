@@ -11,6 +11,12 @@ network ownership and local threat intel; scores and classifies each source with
 a transparent model; raises deduplicated alerts from declarative rules; and
 serves it all through a FastAPI backend and a React dashboard.
 
+> **✅ Proven in production.** Deployed on a public Azure VM, this stack captured
+> **1,172 events / 65 alerts across 13 detection rules** — including live IoT
+> botnets submitting real Mirai credentials and running loader sequences in the
+> emulated shell. See **[docs/live-evidence.md](docs/live-evidence.md)** for the
+> metrics and dashboard screenshots.
+
 > ### Read this first — what this is and isn't
 > This is a **defensive** tool for authorised use: run it on infrastructure you
 > control to study attacks against it, or run the whole thing locally to learn.
