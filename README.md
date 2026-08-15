@@ -5,11 +5,12 @@ pipeline, and an analyst dashboard — one system that watches for attackers,
 records exactly what they do, and turns the raw capture into something you can
 read.
 
-It emulates SSH, Telnet, FTP and HTTP; keeps automated attackers engaged long
-enough to observe their whole playbook; enriches every event with geolocation,
-network ownership and local threat intel; scores and classifies each source with
-a transparent model; raises deduplicated alerts from declarative rules; and
-serves it all through a FastAPI backend and a React dashboard.
+It emulates SSH, Telnet, FTP, HTTP, Redis and MySQL; keeps automated attackers
+engaged long enough to observe their whole playbook; enriches every event with
+geolocation, network ownership and local threat intel; scores and classifies
+each source with a transparent model; raises deduplicated alerts from
+declarative rules; replays any session back keystroke by keystroke; and serves
+it all through a FastAPI backend and a React dashboard.
 
 > **✅ Proven in production.** Deployed on a public Azure VM, this stack captured
 > **1,172 events / 65 alerts across 13 detection rules** — including live IoT
@@ -65,14 +66,16 @@ couple of hands-on-keyboard intrusions — each scored, classified and alerting.
 ```bash
 # high ports by default, so no root needed
 python -m honeypot.main
-# SSH:2222  Telnet:2323  FTP:2121  HTTP:8081
+# SSH:2222  Telnet:2323  FTP:2121  HTTP:8081  Redis:6379  MySQL:3306
 
 # then, from another machine or terminal, exercise it with the test client:
 python -m attacker.run --target 127.0.0.1 --scenario all
 ```
 
 To take real internet traffic, map the low ports to the high ones at your
-firewall (`22 → 2222`, etc.) — never run the sensor as root.
+firewall (`22 → 2222`, etc.) — never run the sensor as root. Redis and MySQL
+already bind their real ports (both are unprivileged), so those need no remap,
+only a firewall rule that lets traffic in.
 
 ---
 
@@ -115,10 +118,10 @@ behind each decision.
 | [`honeypot/`](honeypot/) | The sensor. Async listeners for four protocols, a shared deception layer, and a non-blocking batched event writer. |
 | [`pipeline/enrichment/`](pipeline/enrichment/) | GeoIP, ASN and local threat-intel. Offline-first: absent data looks absent, never guessed. |
 | [`pipeline/detection/`](pipeline/detection/) | A declarative YAML rule engine ([`rules.yaml`](pipeline/detection/rules.yaml)) and a transparent additive scoring model. |
-| [`pipeline/reporting/`](pipeline/reporting/) | Daily Markdown digests and export to CSV/JSONL/STIX/MISP/blocklist. |
+| [`pipeline/reporting/`](pipeline/reporting/) | Daily Markdown summaries, a [chat digest](pipeline/reporting/digest.py) pushed to Discord/Slack/Teams, and export to CSV/JSONL/STIX/MISP/blocklist. |
 | [`storage/`](storage/) | ORM models, engine management (WAL-tuned SQLite, or Postgres), and the analytics queries the API and reports share. |
 | [`api/`](api/) | FastAPI read API plus a few triage endpoints. |
-| [`dashboard/`](dashboard/) | React dashboard: overview, live feed, attacker profiles, alert triage. |
+| [`dashboard/`](dashboard/) | React dashboard: overview, live feed, session replay, attacker profiles, alert triage. |
 | [`attacker/`](attacker/) | A test client (not a scanner) that replays version-controlled scenarios against *your* honeypot. |
 | [`tools/`](tools/) | Seed synthetic data, reset/prune the DB, import Cowrie / auth.log / JSONL. |
 

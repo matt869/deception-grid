@@ -3,7 +3,7 @@
 #   docker compose up --build
 #   → dashboard  http://localhost:8080
 #   → api docs   http://localhost:8000/docs
-#   → sensor     ports 2222/2323/2121/8081
+#   → sensor     ports 2222/2323/2121/8081/6379/3306
 #
 # The sensor's ports are published so you can point traffic (or the test client)
 # at them. To take real internet traffic, map low ports at the host, e.g.
@@ -38,6 +38,11 @@ services:
       - "2323:2323"   # telnet
       - "2121:2121"   # ftp
       - "8081:8081"   # http
+      # Redis and MySQL bait already listen on their real ports inside the
+      # container, so these map straight through. If you run a real Redis or
+      # MySQL on this host, change the left-hand side — or the bind fails.
+      - "6379:6379"   # redis
+      - "3306:3306"   # mysql
     depends_on:
       db:
         condition: service_healthy

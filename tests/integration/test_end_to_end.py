@@ -356,3 +356,49 @@ class TestAPI:
         with TestClient(app) as c:
             body = c.get("/api/events?service=ssh&since_hours=48").json()
         assert all(e["password"] in ("[redacted]", None) for e in body["items"])
+
+
+class TestSessionsAPI:
+    """Session listing and transcript — the endpoints behind session replay."""
+
+    def test_lists_sessions(self, client):
+        body = client.get("/api/sessions").json()
+        assert body["total"] == 2
+        assert {s["service"] for s in body["items"]} == {"ssh", "http"}
+
+    def test_geo_is_derived_from_events(self, client):
+        """The sessions table has no country; the listing fills it from events."""
+        body = client.get("/api/sessions?service=ssh").json()
+        row = body["items"][0]
+        assert row["country"] == "CN"
+        assert row["country_name"] == "China"
+        assert row["as_org"] == "Demo"
+
+    def test_has_commands_filters_out_pure_scans(self, client):
+        assert client.get("/api/sessions?has_commands=true").json()["total"] == 0
+
+    def test_service_filter(self, client):
+        body = client.get("/api/sessions?service=http").json()
+        assert body["total"] == 1
+
+    def test_rejects_unknown_service(self, client):
+        assert client.get("/api/sessions?service=gopher").status_code == 400
+
+    def test_rejects_unknown_sort(self, client):
+        assert client.get("/api/sessions?sort=whatever").status_code == 400
+
+    def test_transcript_is_in_chronological_order(self, client):
+        session_id = client.get("/api/sessions?service=ssh").json()["items"][0]["session_id"]
+        detail = client.get(f"/api/sessions/{session_id}").json()
+        assert len(detail["events"]) == 30
+        timestamps = [e["ts"] for e in detail["events"]]
+        assert timestamps == sorted(timestamps)
+
+    def test_transcript_carries_session_metadata(self, client):
+        session_id = client.get("/api/sessions?service=ssh").json()["items"][0]["session_id"]
+        detail = client.get(f"/api/sessions/{session_id}").json()
+        assert detail["src_ip"] == "192.0.2.100"
+        assert detail["country_name"] == "China"
+
+    def test_unknown_session_is_404(self, client):
+        assert client.get("/api/sessions/does-not-exist").status_code == 404

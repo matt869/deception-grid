@@ -59,6 +59,14 @@ detect: ## Re-run detection over the last 7 days
 report: ## Print the daily summary (Markdown)
 	$(PY) -m pipeline.reporting.daily_summary --days 1
 
+.PHONY: digest
+digest: ## Send the daily digest to DIGEST_WEBHOOK_URL
+	$(PY) -m pipeline.reporting.digest
+
+.PHONY: digest-preview
+digest-preview: ## Print the digest payload without sending it
+	$(PY) -m pipeline.reporting.digest --dry-run
+
 # ------------------------------------------------------------------- checks
 
 .PHONY: test

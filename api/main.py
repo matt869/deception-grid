@@ -186,6 +186,7 @@ def index() -> dict:
         "endpoints": [
             "/api/events",
             "/api/events/live",
+            "/api/sessions",
             "/api/sessions/{id}",
             "/api/stats/summary",
             "/api/stats/timeseries",

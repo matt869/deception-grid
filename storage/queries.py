@@ -124,6 +124,92 @@ def get_session_with_events(db: OrmSession, session_id: str) -> Session | None:
 
 
 # --------------------------------------------------------------------------- #
+# Sessions
+# --------------------------------------------------------------------------- #
+
+SESSION_SORT_FIELDS = ("started_at", "event_count", "commands_run", "auth_attempts", "duration_ms")
+
+
+def list_sessions(
+    db: OrmSession,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    service: str | None = None,
+    src_ip: str | None = None,
+    min_events: int | None = None,
+    has_commands: bool = False,
+    since_hours: float | None = None,
+    sort: str = "started_at",
+) -> tuple[list[Session], int]:
+    """Return ``(sessions, total_matching)`` for the replay browser.
+
+    ``has_commands`` is the filter that matters in practice: it narrows thousands
+    of drive-by connects down to the handful where somebody reached a shell and
+    typed — the only ones worth watching back.
+    """
+    stmt = select(Session)
+    count_stmt = select(func.count()).select_from(Session)
+
+    conditions = []
+    if service:
+        conditions.append(Session.service == service)
+    if src_ip:
+        conditions.append(Session.src_ip == src_ip)
+    if min_events is not None:
+        conditions.append(Session.event_count >= min_events)
+    if has_commands:
+        conditions.append(Session.commands_run > 0)
+    if since_hours is not None:
+        conditions.append(Session.started_at >= _since(since_hours))
+
+    for cond in conditions:
+        stmt = stmt.where(cond)
+        count_stmt = count_stmt.where(cond)
+
+    sort_col = {
+        "started_at": Session.started_at,
+        "event_count": Session.event_count,
+        "commands_run": Session.commands_run,
+        "auth_attempts": Session.auth_attempts,
+        "duration_ms": Session.duration_ms,
+    }.get(sort, Session.started_at)
+
+    total = db.execute(count_stmt).scalar_one()
+    # started_at breaks ties so paging is stable when the sort column repeats
+    # (it repeats constantly — most sessions run the same handful of commands).
+    stmt = stmt.order_by(sort_col.desc(), Session.started_at.desc()).limit(limit).offset(offset)
+    return list(db.execute(stmt).scalars()), int(total)
+
+
+def sessions_geo(db: OrmSession, session_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """Geo/ASN per session, derived from that session's events.
+
+    The sensor writes ``sessions`` rows before enrichment runs, so the columns on
+    ``Session`` itself are usually empty. Events carry the enrichment, so read it
+    back from there — one grouped query rather than one lookup per row.
+    """
+    ids = [sid for sid in session_ids if sid]
+    if not ids:
+        return {}
+    stmt = (
+        select(
+            Event.session_id,
+            func.max(Event.country),
+            func.max(Event.country_name),
+            func.max(Event.asn),
+            func.max(Event.as_org),
+        )
+        .where(Event.session_id.in_(ids))
+        .group_by(Event.session_id)
+    )
+    return {
+        sid: {"country": country, "country_name": name, "asn": asn, "as_org": org}
+        for sid, country, name, asn, org in db.execute(stmt)
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Summary statistics
 # --------------------------------------------------------------------------- #
 
@@ -605,5 +691,8 @@ __all__ = [
     "set_alert_status",
     "alert_counts_by_rule",
     "get_session_with_events",
+    "list_sessions",
+    "sessions_geo",
+    "SESSION_SORT_FIELDS",
     "BUCKETS",
 ]

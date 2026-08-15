@@ -39,6 +39,11 @@
   --accent: #2a78d6;
   --grid: #ececea;
 
+  /* session replay terminal — one step darker than the page in light mode so
+     the transcript reads as a console without inverting the whole theme */
+  --term-bg: #17171a;
+  --term-fg: #e6e5df;
+
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
   --radius: 10px;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
@@ -72,6 +77,9 @@
 
   --accent: #3987e5;
   --grid: #2a2a28;
+
+  --term-bg: #0d0d0c;
+  --term-fg: #e6e5df;
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
@@ -458,6 +466,111 @@ code,
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+
+/* ------------------------------------------------------------- transcript */
+
+.term {
+  background: var(--term-bg);
+  color: var(--term-fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.75;
+  height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.term-line {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: term-in 0.14s ease-out;
+}
+@keyframes term-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-line {
+    animation: none;
+  }
+  .term {
+    scroll-behavior: auto;
+  }
+}
+
+.term-ts {
+  color: #6f6e66;
+  flex: 0 0 auto;
+  font-size: 11px;
+  user-select: none;
+}
+.term-body {
+  flex: 1;
+  min-width: 0;
+}
+.term-prompt {
+  color: #5fa8ff;
+  font-weight: 700;
+}
+.term-cmd {
+  color: #ffffff;
+}
+.term-cred {
+  color: #f2b544;
+}
+.term-ok {
+  color: #4ecf9a;
+}
+.term-warn {
+  color: #ff8a5c;
+}
+.term-ua {
+  color: #8b8a80;
+  font-size: 11px;
+}
+.term-command .term-body,
+.term-auth_success .term-body {
+  font-weight: 500;
+}
+
+.term-idle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6f6e66;
+  font-size: 11px;
+  margin: 6px 0;
+  user-select: none;
+}
+.term-idle::before,
+.term-idle::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed #3a3936;
+}
+
+.term-caret {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--term-fg);
+  vertical-align: text-bottom;
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 /* misc */

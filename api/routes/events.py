@@ -7,7 +7,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as OrmSession
 
-from api.schemas import EventOut, Page, SessionDetail, redact_passwords
+from api.schemas import EventOut, Page, SessionDetail, SessionSummary, redact_passwords
 from storage import queries
 from storage.db import get_db
 from storage.models import EventType, Service, Severity
@@ -117,6 +117,55 @@ def get_event(event_id: str, db: OrmSession = Depends(get_db)) -> EventOut:
 sessions_router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
+@sessions_router.get("", response_model=Page[SessionSummary], summary="List sessions")
+def list_sessions(
+    db: OrmSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    service: str | None = Query(None, description="ssh | telnet | ftp | http | redis | mysql"),
+    src_ip: str | None = Query(None),
+    min_events: int | None = Query(None, ge=0),
+    has_commands: bool = Query(
+        False, description="only sessions where a command was run — the ones worth replaying"
+    ),
+    since_hours: float | None = Query(None, gt=0, le=24 * 365),
+    sort: str = Query("started_at"),
+) -> Page[SessionSummary]:
+    if service and service not in {s.value for s in Service}:
+        raise HTTPException(400, f"unknown service {service!r}")
+    if sort not in queries.SESSION_SORT_FIELDS:
+        raise HTTPException(
+            400, f"cannot sort by {sort!r}; use one of {list(queries.SESSION_SORT_FIELDS)}"
+        )
+
+    rows, total = queries.list_sessions(
+        db,
+        limit=limit,
+        offset=offset,
+        service=service,
+        src_ip=src_ip,
+        min_events=min_events,
+        has_commands=has_commands,
+        since_hours=since_hours,
+        sort=sort,
+    )
+
+    geo = queries.sessions_geo(db, [row.session_id for row in rows])
+    items = [_summarise(row, geo.get(row.session_id)) for row in rows]
+    return Page[SessionSummary](items=items, total=total, limit=limit, offset=offset)
+
+
+def _summarise(session, geo: dict | None) -> SessionSummary:
+    """Build a listing row, preferring event-derived geo over the empty columns."""
+    summary = SessionSummary.model_validate(session)
+    if geo:
+        summary.country = geo.get("country") or summary.country
+        summary.country_name = geo.get("country_name")
+        summary.asn = geo.get("asn") or summary.asn
+        summary.as_org = geo.get("as_org")
+    return summary
+
+
 @sessions_router.get("/{session_id}", response_model=SessionDetail, summary="Session transcript")
 def get_session(session_id: str, db: OrmSession = Depends(get_db)) -> SessionDetail:
     """Full transcript of one connection, in order.
@@ -133,7 +182,8 @@ def get_session(session_id: str, db: OrmSession = Depends(get_db)) -> SessionDet
     if _should_redact():
         items = redact_passwords(items)
 
-    detail = SessionDetail.model_validate(session)
+    geo = queries.sessions_geo(db, [session_id])
+    detail = SessionDetail.model_validate(_summarise(session, geo.get(session_id)))
     detail.events = items
     return detail
 

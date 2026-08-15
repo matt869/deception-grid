@@ -61,6 +61,30 @@ def _detect_kind(url: str) -> str:
     return "generic"
 
 
+def post_webhook(url: str, payload: dict[str, Any], timeout: float = 8.0) -> bool:
+    """POST one JSON payload to a webhook. Returns True on success.
+
+    Shared by the alert notifier and the daily digest. Never raises: a webhook
+    being down must not break the pipeline that called it.
+    """
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", "User-Agent": "honeypot-notifier/1.0"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
+            if resp.status >= 300:
+                log.warning("webhook returned %s", resp.status)
+                return False
+            return True
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        log.warning("webhook failed: %s", exc)
+        return False
+
+
 class Notifier:
     """Formats and delivers alert notifications to a configured webhook."""
 
@@ -181,23 +205,10 @@ class Notifier:
     # ------------------------------------------------------------------ #
 
     def _send(self, payload: dict[str, Any]) -> None:
-        data = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(
-            self.webhook_url,
-            data=data,
-            headers={"Content-Type": "application/json", "User-Agent": "honeypot-notifier/1.0"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as resp:
-                if resp.status >= 300:
-                    self.failed += 1
-                    log.warning("notification webhook returned %s", resp.status)
-                else:
-                    self.sent += 1
-        except (urllib.error.URLError, OSError, ValueError) as exc:
+        if post_webhook(self.webhook_url, payload, timeout=self.timeout):
+            self.sent += 1
+        else:
             self.failed += 1
-            log.warning("notification webhook failed: %s", exc)
 
 
 def notify_new_alerts(alerts: Iterable[dict[str, Any]]) -> dict[str, int]:
@@ -213,4 +224,4 @@ def notify_new_alerts(alerts: Iterable[dict[str, Any]]) -> dict[str, int]:
     return {"enabled": 1, "sent": sent, "failed": notifier.failed}
 
 
-__all__ = ["Notifier", "notify_new_alerts"]
+__all__ = ["Notifier", "notify_new_alerts", "post_webhook"]

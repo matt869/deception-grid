@@ -105,7 +105,7 @@ export default function LiveFeed() {
             <code>python -m attacker.run</code>.
           </div>
         ) : (
-          <EventTable events={events} highlightId={newest} />
+          <EventTable events={events} highlightId={newest} showSession />
         )}
       </div>
     </div>

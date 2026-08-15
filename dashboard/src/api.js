@@ -54,6 +54,7 @@ export const api = {
 
   events: (params) => request(`/events${qs(params)}`),
   live: (params) => request(`/events/live${qs(params)}`),
+  sessions: (params) => request(`/sessions${qs(params)}`),
   session: (id) => request(`/sessions/${id}`),
 
   attackers: (params) => request(`/attackers${qs(params)}`),
@@ -99,6 +100,19 @@ export function fmtTime(iso) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+// Milliseconds → "4.2s" / "1m 32s" / "2h 05m". Used for session durations and
+// the idle gaps in replay, where sub-second precision matters at the low end.
+export function fmtDuration(ms) {
+  if (ms === null || ms === undefined) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const s = ms / 1000;
+  if (s < 10) return `${s.toFixed(1)}s`;
+  if (s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
 export function fmtRelative(iso) {

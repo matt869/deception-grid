@@ -127,7 +127,7 @@ export default function AttackerProfile() {
               <thead>
                 <tr>
                   <th>Service</th><th>Started</th><th className="right">Events</th>
-                  <th className="right">Auth</th><th className="right">Commands</th><th>Closed by</th>
+                  <th className="right">Auth</th><th className="right">Commands</th><th>Closed by</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -137,8 +137,17 @@ export default function AttackerProfile() {
                     <td className="mono">{fmtTime(s.started_at)}</td>
                     <td className="right">{s.event_count}</td>
                     <td className="right">{s.auth_attempts}</td>
-                    <td className="right">{s.commands_run}</td>
+                    <td className="right">
+                      {s.commands_run > 0
+                        ? <strong style={{ color: "var(--sev-high)" }}>{s.commands_run}</strong>
+                        : <span className="muted">0</span>}
+                    </td>
                     <td className="muted">{s.closed_by || "—"}</td>
+                    <td>
+                      <Link to={`/sessions/${s.session_id}`} className="chip" title="Replay this session">
+                        ▶ Replay
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

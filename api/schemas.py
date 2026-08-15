@@ -121,7 +121,18 @@ class SessionOut(BaseModel):
     asn: int | None = None
 
 
-class SessionDetail(SessionOut):
+class SessionSummary(SessionOut):
+    """A session listing row.
+
+    ``country_name``/``as_org`` are filled from the session's events rather than
+    the sessions table, which the sensor writes before enrichment runs.
+    """
+
+    country_name: str | None = None
+    as_org: str | None = None
+
+
+class SessionDetail(SessionSummary):
     events: list[EventOut] = Field(default_factory=list)
 
 
@@ -367,6 +378,7 @@ __all__ = [
     "Message",
     "EventOut",
     "SessionOut",
+    "SessionSummary",
     "SessionDetail",
     "AttackerOut",
     "AttackerDetail",

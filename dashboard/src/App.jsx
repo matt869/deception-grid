@@ -5,11 +5,14 @@ import Overview from "./pages/Overview.jsx";
 import LiveFeed from "./pages/LiveFeed.jsx";
 import Attackers from "./pages/Attackers.jsx";
 import AttackerProfile from "./pages/AttackerProfile.jsx";
+import Sessions from "./pages/Sessions.jsx";
+import SessionReplay from "./pages/SessionReplay.jsx";
 import Alerts from "./pages/Alerts.jsx";
 
 const NAV = [
   { to: "/overview", label: "Overview", icon: "◧" },
   { to: "/live", label: "Live feed", icon: "◉" },
+  { to: "/sessions", label: "Sessions", icon: "▶" },
   { to: "/attackers", label: "Attackers", icon: "⚑" },
   { to: "/alerts", label: "Alerts", icon: "!" },
 ];
@@ -69,6 +72,8 @@ export default function App() {
           <Route path="/" element={<Navigate to="/overview" replace />} />
           <Route path="/overview" element={<Overview />} />
           <Route path="/live" element={<LiveFeed />} />
+          <Route path="/sessions" element={<Sessions />} />
+          <Route path="/sessions/:id" element={<SessionReplay />} />
           <Route path="/attackers" element={<Attackers />} />
           <Route path="/attackers/:ip" element={<AttackerProfile />} />
           <Route path="/alerts" element={<Alerts />} />

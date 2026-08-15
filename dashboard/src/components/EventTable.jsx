@@ -9,6 +9,9 @@ import { SERVICE_COLORS, severityClass, fmtTime, flag } from "../api.js";
  * "what" column adapts per event type so a command, an HTTP path and a
  * credential attempt each show their salient field rather than a fixed column
  * that is empty three times out of four.
+ *
+ * ``showSession`` adds a replay link per row — worth it on the live feed, noise
+ * on a session's own transcript where every row points at the page you're on.
  */
 export default function EventTable({ events = [], showSession = false, highlightId = null }) {
   if (!events.length) return <div className="empty">No events.</div>;
@@ -25,6 +28,7 @@ export default function EventTable({ events = [], showSession = false, highlight
             <th>Type</th>
             <th>Detail</th>
             <th>Tags</th>
+            {showSession && <th />}
           </tr>
         </thead>
         <tbody>
@@ -57,6 +61,15 @@ export default function EventTable({ events = [], showSession = false, highlight
                   <span className="tag" key={t}>{t}</span>
                 ))}
               </td>
+              {showSession && (
+                <td>
+                  {e.session_id ? (
+                    <Link to={`/sessions/${e.session_id}`} className="chip" title="Replay this session">
+                      ▶
+                    </Link>
+                  ) : null}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

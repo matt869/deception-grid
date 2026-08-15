@@ -22,8 +22,25 @@ In the Azure portal, on the VM's NSG, create two inbound rules:
 | 310 | `Allow-Honeypot-Public` | `Any` | `22,23,80,21,6379,3306` | TCP | Allow |
 
 Ports `6379` (Redis) and `3306` (MySQL) are the datastore bait — include them in
-rule 310 (or add a second rule) so those services actually receive traffic. They
-run inside the sensor either way, but the NSG must let the internet reach them.
+rule 310 (or add a second rule) so those services actually receive traffic.
+
+**Two things must both be true for a bait port to collect anything:** the NSG
+must allow it *and* the host must publish it (step 4). Opening the NSG alone
+leaves the packets dying at the VM's own network stack, with nothing in the
+dashboard to show for it.
+
+To widen an existing rule 310 from the CLI instead of the portal:
+
+```bash
+az network nsg rule update \
+  --resource-group <RG> --nsg-name <NSG> --name Allow-Honeypot-Public \
+  --destination-port-ranges 22 23 80 21 6379 3306
+
+# confirm what the rule now allows
+az network nsg rule show \
+  --resource-group <RG> --nsg-name <NSG> --name Allow-Honeypot-Public \
+  --query "{ports:destinationPortRanges,access:access,priority:priority}" -o table
+```
 
 **The admin rule's Source must be your own workstation IP — never `Any`.** An
 admin SSH port open to the world defeats the point of moving it. Leave the
@@ -94,6 +111,8 @@ services:
       - "23:2323"     # telnet bait
       - "80:8081"     # http bait
       - "21:2121"     # ftp bait
+      - "6379:6379"   # redis bait
+      - "3306:3306"   # mysql bait
     volumes:
       - sensor_data:/app/data          # persist captured payloads + SSH host key
   api:
@@ -119,11 +138,20 @@ sudo docker compose config | grep -E 'host_ip|published|^  [a-z]+:'
 ```bash
 sudo docker compose up -d --build      # first run builds 3 images, a few minutes
 sudo docker compose ps                 # all should be Up / healthy
-sudo ss -tlnp | grep -E ':22 |:23 |:80 |:21 |127.0.0.1:8080'
+sudo ss -tlnp | grep -E ':22 |:23 |:80 |:21 |:6379 |:3306 |127.0.0.1:8080'
 ```
 
-Expect `docker-proxy` on `0.0.0.0:22/23/80/21` and the dashboard on
-`127.0.0.1:8080`.
+Expect `docker-proxy` on `0.0.0.0:22/23/80/21/6379/3306` and the dashboard on
+`127.0.0.1:8080`. A bait port missing here means the override didn't apply —
+fix that before blaming the NSG.
+
+From your **workstation**, confirm the new bait is reachable from the internet
+(both should connect; the sensor answers with a convincing banner):
+
+```powershell
+Test-NetConnection <VM_PUBLIC_IP> -Port 6379
+Test-NetConnection <VM_PUBLIC_IP> -Port 3306
+```
 
 ## 6. Turn on automatic detection + scoring
 
@@ -161,6 +189,26 @@ sudo docker compose up -d api
 ```
 
 Slack/Discord/Teams/generic are auto-detected from the URL.
+
+**Daily digest** — one summary a day instead of a dashboard you mean to check.
+Reuses the alert webhook unless you point it somewhere else:
+
+```bash
+echo 'DIGEST_WEBHOOK_URL=https://discord.com/api/webhooks/XXX/YYY' >> .env
+echo 'DASHBOARD_URL=http://localhost:8080' >> .env      # shown in the footer
+
+# preview it before committing to a daily post
+sudo docker compose exec api python -m pipeline.reporting.digest --dry-run
+
+# then schedule it for 07:00 UTC
+( crontab -l 2>/dev/null; \
+  echo "0 7 * * * cd $HOME/honeypot-dashboard && sudo docker compose exec -T api python -m pipeline.reporting.digest >> $HOME/digest.log 2>&1" \
+) | crontab -
+```
+
+Captured second-stage URLs are defanged (`hxxp://evil[.]com`) before posting, so
+a malware-distribution link can't be clicked out of the channel. Exit codes:
+`0` sent, `1` webhook failed, `2` no webhook configured.
 
 **Threat-intel feeds** — load real blocklists so `known-bad`/high-score matches
 fire (the sensor mounts `data/indicators/` read-only; a weekly cron refreshes):
