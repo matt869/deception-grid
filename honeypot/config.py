@@ -82,6 +82,10 @@ class Settings:
     redis_port: int = field(default_factory=lambda: _env_int("REDIS_PORT", 6379))
     mysql_enabled: bool = field(default_factory=lambda: _env_bool("MYSQL_ENABLED", True))
     mysql_port: int = field(default_factory=lambda: _env_int("MYSQL_PORT", 3306))
+    # An exposed Docker daemon is host-takeover-by-design, not an exploit — the
+    # single highest-signal bait in the set.
+    docker_enabled: bool = field(default_factory=lambda: _env_bool("DOCKER_ENABLED", True))
+    docker_port: int = field(default_factory=lambda: _env_int("DOCKER_PORT", 2375))
 
     # -- deception ----------------------------------------------------------
     # The persona every service presents. See honeypot/deception/banners.py.
@@ -143,6 +147,7 @@ class Settings:
             ServiceConfig("http", self.http_enabled, self.http_port),
             ServiceConfig("redis", self.redis_enabled, self.redis_port),
             ServiceConfig("mysql", self.mysql_enabled, self.mysql_port),
+            ServiceConfig("docker", self.docker_enabled, self.docker_port),
         ]
 
     def enabled_services(self) -> list[ServiceConfig]:

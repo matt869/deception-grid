@@ -61,6 +61,7 @@ export default function Sessions() {
             <option value="http">HTTP</option>
             <option value="redis">Redis</option>
             <option value="mysql">MySQL</option>
+            <option value="docker">Docker</option>
           </select>
           <select value={sort} onChange={(e) => setSort(e.target.value)}>
             <option value="started_at">Sort: newest</option>

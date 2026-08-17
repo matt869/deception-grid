@@ -75,6 +75,7 @@ class Service(str, enum.Enum):
     HTTP = "http"
     REDIS = "redis"
     MYSQL = "mysql"
+    DOCKER = "docker"
 
 
 class EventType(str, enum.Enum):

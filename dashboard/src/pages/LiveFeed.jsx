@@ -82,6 +82,7 @@ export default function LiveFeed() {
             <option value="http">HTTP</option>
             <option value="redis">Redis</option>
             <option value="mysql">MySQL</option>
+            <option value="docker">Docker</option>
           </select>
           <select value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
             <option value="">Any severity</option>

@@ -43,6 +43,9 @@ services:
       # MySQL on this host, change the left-hand side — or the bind fails.
       - "6379:6379"   # redis
       - "3306:3306"   # mysql
+      # Docker API bait. The sensor never talks to a real daemon and the host's
+      # own docker socket is never mounted — this only listens.
+      - "2375:2375"   # docker
     depends_on:
       db:
         condition: service_healthy

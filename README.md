@@ -1,16 +1,19 @@
-# Honeypot Dashboard
+# Deception Grid
 
-A multi-service honeypot sensor, an offline-first enrichment and detection
-pipeline, and an analyst dashboard — one system that watches for attackers,
-records exactly what they do, and turns the raw capture into something you can
-read.
+A multi-service deception platform: honeypot sensors, an offline-first
+enrichment and detection pipeline, and an analyst dashboard — one system that
+watches for attackers, records exactly what they do, and turns the raw capture
+into something you can read.
 
-It emulates SSH, Telnet, FTP, HTTP, Redis and MySQL; keeps automated attackers
-engaged long enough to observe their whole playbook; enriches every event with
-geolocation, network ownership and local threat intel; scores and classifies
-each source with a transparent model; raises deduplicated alerts from
-declarative rules; replays any session back keystroke by keystroke; and serves
-it all through a FastAPI backend and a React dashboard.
+It emulates **SSH, Telnet, FTP, HTTP, Redis, MySQL and the Docker Engine API**;
+keeps automated attackers engaged long enough to observe their whole playbook;
+enriches every event with geolocation, network ownership and local threat intel;
+scores and classifies each source with a transparent model; raises deduplicated
+alerts from 28 declarative rules; reports ATT&CK coverage honestly; replays any
+session back keystroke by keystroke; and serves it all through a FastAPI backend
+and a React dashboard.
+
+Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 > **✅ Proven in production.** Deployed on a public Azure VM, this stack captured
 > **1,172 events / 65 alerts across 13 detection rules** — including live IoT
@@ -66,7 +69,7 @@ couple of hands-on-keyboard intrusions — each scored, classified and alerting.
 ```bash
 # high ports by default, so no root needed
 python -m honeypot.main
-# SSH:2222  Telnet:2323  FTP:2121  HTTP:8081  Redis:6379  MySQL:3306
+# SSH:2222  Telnet:2323  FTP:2121  HTTP:8081  Redis:6379  MySQL:3306  Docker:2375
 
 # then, from another machine or terminal, exercise it with the test client:
 python -m attacker.run --target 127.0.0.1 --scenario all
@@ -84,7 +87,7 @@ only a firewall rule that lets traffic in.
 ```
                           ┌─────────────────────────────────────────┐
    attackers ───tcp──▶    │  honeypot/  (asyncio, one task per conn) │
-                          │  ssh · telnet · ftp · http               │
+                          │  ssh·telnet·ftp·http·redis·mysql·docker  │
                           │  deception layer (personas, fake shell)  │
                           └───────────────────┬─────────────────────┘
                                               │ events (bounded queue,
@@ -115,13 +118,14 @@ behind each decision.
 
 | Path | What it is |
 |------|-----------|
-| [`honeypot/`](honeypot/) | The sensor. Async listeners for four protocols, a shared deception layer, and a non-blocking batched event writer. |
+| [`honeypot/`](honeypot/) | The sensor. Async listeners for seven protocols, a shared deception layer, and a non-blocking batched event writer. |
 | [`pipeline/enrichment/`](pipeline/enrichment/) | GeoIP, ASN and local threat-intel. Offline-first: absent data looks absent, never guessed. |
-| [`pipeline/detection/`](pipeline/detection/) | A declarative YAML rule engine ([`rules.yaml`](pipeline/detection/rules.yaml)) and a transparent additive scoring model. |
+| [`pipeline/detection/`](pipeline/detection/) | A declarative YAML rule engine ([`rules.yaml`](pipeline/detection/rules.yaml)), a transparent additive scoring model, and [ATT&CK coverage](pipeline/detection/coverage.py). |
 | [`pipeline/reporting/`](pipeline/reporting/) | Daily Markdown summaries, a [chat digest](pipeline/reporting/digest.py) pushed to Discord/Slack/Teams, and export to CSV/JSONL/STIX/MISP/blocklist. |
 | [`storage/`](storage/) | ORM models, engine management (WAL-tuned SQLite, or Postgres), and the analytics queries the API and reports share. |
 | [`api/`](api/) | FastAPI read API plus a few triage endpoints. |
 | [`dashboard/`](dashboard/) | React dashboard: overview, live feed, session replay, attacker profiles, alert triage. |
+| [`fleet/`](fleet/) | Multi-sensor coordination — ingest, registry, buffering. Phase 1, scaffolded. |
 | [`attacker/`](attacker/) | A test client (not a scanner) that replays version-controlled scenarios against *your* honeypot. |
 | [`tools/`](tools/) | Seed synthetic data, reset/prune the DB, import Cowrie / auth.log / JSONL. |
 
@@ -129,7 +133,7 @@ behind each decision.
 
 ## What it detects
 
-Detection is [21 declarative rules](pipeline/detection/rules.yaml) evaluated over
+Detection is [28 declarative rules](pipeline/detection/rules.yaml) evaluated over
 a **sliding window of the events themselves** (so replaying old data or a late
 scheduled run still fires — detection is a property of the data, not the clock).
 A sample:
@@ -141,6 +145,8 @@ A sample:
   Mirai command signatures, shadow-file access.
 - **Web attacks** — Log4Shell, Shellshock, SQL injection, path traversal,
   webshell upload, secret-file probing (`.env`/`.git`).
+- **Container abuse** — Docker API enumeration, host-filesystem bind mounts,
+  privileged container creation, cryptominer images, container start/exec.
 - **Behaviour** — multi-service sweeps, FTP bounce attempts, high-volume
   sources, threat-intel matches.
 
@@ -149,6 +155,56 @@ Each source gets a 0–100 threat score from a **transparent, inspectable** mode
 post-exploitation, threat-intel — each bounded and weighted), plus a behavioural
 class (`botnet-loader`, `targeted-intrusion`, `web-scanner`, …). The dashboard
 shows the full breakdown for every attacker — see [docs/detection_rules.md](docs/detection_rules.md).
+
+---
+
+## The Docker API bait
+
+An unauthenticated Docker daemon on TCP 2375 is the highest-signal bait in the
+set, because it is not an exploit — it is the documented API working as designed.
+Anyone who reaches it can create a container that bind-mounts the host
+filesystem and, from inside it, read or write anything on the host as root. No
+CVE, no memory corruption.
+
+The valuable capture isn't the recon every scanner does. It's the JSON body of
+`POST /containers/create` — the image chosen, the command intended, and above
+all `HostConfig.Binds`, which states the goal in plain text:
+
+```json
+{"Image":"alpine:latest",
+ "Cmd":["/bin/sh","-c","echo pwned >> /mnt/root/.ssh/authorized_keys"],
+ "HostConfig":{"Binds":["/:/mnt"],"Privileged":true}}
+```
+
+That request is recorded `critical`, tagged `docker-host-mount` +
+`docker-host-takeover` + `docker-privileged`. The emulator returns a plausible
+container ID so the client proceeds to `/start` and `/exec` and reveals the rest
+of the plan. Nothing is created, pulled, started or executed — and the sensor
+never touches a real Docker socket.
+
+---
+
+## ATT&CK coverage
+
+Detection rules carry MITRE technique IDs, so the platform can report coverage —
+but it draws a line most coverage reports blur:
+
+- **observed** — a rule claims the technique *and* an alert has actually fired
+- **rule-only** — a rule claims it and it has never once triggered
+- **orphaned** — alerts exist for a technique no current rule claims
+
+A rule that has never fired is not coverage; it's an untested assertion. It may
+be perfectly written and simply describing behaviour nobody has aimed here yet,
+or it may be silently broken — and a green tick can't tell you which.
+
+```
+GET /api/alerts/coverage
+
+ATT&CK coverage: 3 observed of 21 claimed (14% backed by a real alert)
+  Execution           ✓ T1610  Deploy Container            [critical]
+  Privilege Escalation ✓ T1611  Escape to Host             [critical]
+  Discovery           ✓ T1046  Network Service Discovery   [medium]
+```
 
 ---
 
@@ -223,6 +279,7 @@ and edit. Highlights:
 | `ACCEPT_LOGIN_RATE` | `0.15` | fraction of logins to "accept" so post-auth behaviour can be observed |
 | `SSH_PORT` … `HTTP_PORT` | 2222/2323/2121/8081 | bind ports |
 | `REDIS_PORT` / `MYSQL_PORT` | 6379 / 3306 | datastore bait — real ports, no remap needed |
+| `DOCKER_PORT` | 2375 | Docker API bait — never enable on a host running Docker on 2375 |
 | `API_REDACT_PASSWORDS` | off | blank captured passwords in API responses |
 | `API_CORS_ORIGINS` | localhost:5173 | dashboard origin(s) |
 | `ALERT_WEBHOOK_URL` | unset | real-time alerts (Slack/Discord/Teams/generic) |

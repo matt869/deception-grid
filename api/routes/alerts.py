@@ -82,6 +82,23 @@ def by_rule(
     return queries.alert_counts_by_rule(db, since_hours=hours)
 
 
+@router.get("/coverage", summary="MITRE ATT&CK coverage")
+def coverage(
+    db: OrmSession = Depends(get_db),
+    hours: float | None = Query(
+        None, gt=0, le=24 * 365, description="omit to report over all history"
+    ),
+) -> dict:
+    """Which techniques the rules claim, and which have actually fired.
+
+    A technique backed by a rule that has never produced an alert is reported as
+    ``rule-only``, not as coverage — see pipeline.detection.coverage.
+    """
+    from pipeline.detection.coverage import coverage_report
+
+    return coverage_report(db, since_hours=hours)
+
+
 @router.post("/run", response_model=dict, summary="Run detection now")
 def run_now(
     db: OrmSession = Depends(get_db),

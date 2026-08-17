@@ -77,6 +77,7 @@ export const SERVICE_COLORS = {
   http: "var(--svc-http)",
   redis: "var(--svc-redis)",
   mysql: "var(--svc-mysql)",
+  docker: "var(--svc-docker)",
 };
 
 export const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"];
