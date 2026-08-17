@@ -15,11 +15,14 @@ and a React dashboard.
 
 Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
-> **✅ Proven in production.** Deployed on a public Azure VM, this stack captured
-> **1,172 events / 65 alerts across 13 detection rules** — including live IoT
-> botnets submitting real Mirai credentials and running loader sequences in the
-> emulated shell. See **[docs/live-evidence.md](docs/live-evidence.md)** for the
-> metrics and dashboard screenshots.
+> **✅ Proven in production.** Deployed on a public Azure VM, this stack has
+> captured **3,714 events of genuine internet attack traffic from 108 sources
+> across 31 countries** in under three days — 243 emulated shells granted, 1,432
+> attacker commands recorded, 18 detection rules firing, and **67% of claimed
+> ATT&CK techniques backed by real alerts**. Live IoT botnets submitting real
+> Mirai credentials, plus Redis and MySQL abuse within days of exposure.
+> Full measurements, test results and a security review of the deployment:
+> **[docs/azure-run-2026-08-17.md](docs/azure-run-2026-08-17.md)**.
 
 > ### Read this first — what this is and isn't
 > This is a **defensive** tool for authorised use: run it on infrastructure you
