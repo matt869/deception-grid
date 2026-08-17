@@ -23,6 +23,8 @@ Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 > Mirai credentials, plus Redis and MySQL abuse within days of exposure.
 > Full measurements, test results and a security review of the deployment:
 > **[docs/azure-run-2026-08-17.md](docs/azure-run-2026-08-17.md)**.
+> A full five-stage kill chain, captured and replayed end to end:
+> **[docs/demo-kill-chain-2026-08-17.md](docs/demo-kill-chain-2026-08-17.md)**.
 
 > ### Read this first — what this is and isn't
 > This is a **defensive** tool for authorised use: run it on infrastructure you
