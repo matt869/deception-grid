@@ -119,9 +119,22 @@ class TestThreatIntel:
         result = threat_intel.check_username("j.smith.finance")
         assert "cred:specific-username" in result["ti_tags"]
 
-    def test_private_ip_has_no_indicator_match(self):
-        # No indicator files loaded in CI; a clean IP scores zero.
-        assert threat_intel.check_ip("192.0.2.99")["ti_score"] == 0.0
+    def test_ip_with_no_indicator_loaded_scores_zero(self, tmp_path, monkeypatch):
+        """A source matching nothing scores zero.
+
+        The indicator directory is redirected at an empty temp dir rather than
+        assumed empty. It is not: a real deployment mounts live feeds, and
+        FireHOL's level-1 list contains the RFC 5737 documentation ranges — so
+        the previous version of this test passed in CI and failed on the sensor,
+        which is the worst way for a test to be wrong.
+        """
+        monkeypatch.setattr(threat_intel, "INDICATOR_DIR", tmp_path)
+        threat_intel.reload_indicators()
+        try:
+            assert threat_intel.check_ip("192.0.2.99")["ti_score"] == 0.0
+        finally:
+            # Restore the process-wide cache for whatever runs next.
+            threat_intel.reload_indicators()
 
     def test_enrich_combines_signals(self):
         result = threat_intel.enrich("192.0.2.1", user_agent="masscan/1.3", username="admin")
