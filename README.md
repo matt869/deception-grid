@@ -25,6 +25,8 @@ Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 > **[docs/azure-run-2026-08-17.md](docs/azure-run-2026-08-17.md)**.
 > A full five-stage kill chain, captured and replayed end to end:
 > **[docs/demo-kill-chain-2026-08-17.md](docs/demo-kill-chain-2026-08-17.md)**.
+> Real attacks from 38 countries — a live Redis RCE, a Mirai CDN, regional credential playbooks:
+> **[docs/threat-evidence-global.md](docs/threat-evidence-global.md)**.
 
 > ### Read this first — what this is and isn't
 > This is a **defensive** tool for authorised use: run it on infrastructure you
