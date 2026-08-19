@@ -129,3 +129,42 @@ The sensor's ignore-list drops the operator address at admission during normal
 operation, so this demonstration traffic never enters the genuine-attacker
 dataset. See [`azure-run-2026-08-17.md`](azure-run-2026-08-17.md) for that
 separation and the production figures.
+
+---
+
+## Wave 2 — closing the coverage gaps (2026-08-19)
+
+A second, targeted campaign aimed at the four techniques the rule set claimed
+but had never actually fired — turning `rule-only` cells into evidenced ones.
+
+| Technique | Attack sent | Result |
+|---|---|---|
+| T1110.003 Password spraying | one password across 16 distinct usernames (telnet) | **fired** |
+| T1110.004 Credential stuffing | 16 distinct usernames in one window | **fired** |
+| T1003.008 `/etc/shadow` dumping | `cat /etc/shadow` in a granted shell | **fired** |
+| T1090 Proxy (FTP bounce) | `PORT` to a third-party host | verified by test — see below |
+
+**ATT&CK coverage moved from 17/21 (81%) to 20/21 (95%)** in one wave.
+
+### The FTP-bounce finding
+
+The bounce attempt would not deliver over the wire from the operator host: every
+`PORT` command carrying a foreign address was reset before it reached the sensor.
+The cause is **the attacker's own operating system** — the Windows FTP
+Application-Layer Gateway inspects the control channel and tears down a `PORT`
+that advertises a mismatched IP, exactly the classic bounce. It is a real, if
+ironic, artifact: the attack was blocked by the attacker's own stack, not the
+target.
+
+The `ftp_bounce` rule and the FTP service's `PORT` handling were therefore proven
+the deterministic way instead — a unit test drives the exact event the service
+emits (`tags: [ftp-bounce-attempt]`) through the shipped rule and asserts the
+alert, mapped to T1090. See `tests/unit/test_detection.py::TestShippedMatchRules`.
+This is stronger evidence than a lucky session: it holds every run.
+
+### Also fixed this wave
+
+- **JSONL export route.** `GET /api/export/events.jsonl` now exists — the
+  exporter shipped from day one but was reachable only from the CLI. Covered by
+  a regression test so the gap can't reopen.
+- Test suite: **256 passing.**

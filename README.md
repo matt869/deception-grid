@@ -16,11 +16,11 @@ and a React dashboard.
 Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 > **✅ Proven in production.** Deployed on a public Azure VM, this stack has
-> captured **3,714 events of genuine internet attack traffic from 108 sources
-> across 31 countries** in under three days — 243 emulated shells granted, 1,432
-> attacker commands recorded, 18 detection rules firing, and **67% of claimed
-> ATT&CK techniques backed by real alerts**. Live IoT botnets submitting real
-> Mirai credentials, plus Redis and MySQL abuse within days of exposure.
+> captured genuine internet attacks from **163 sources across 38 countries** —
+> emulated shells granted, attacker commands recorded, and **20 of 21 claimed
+> ATT&CK techniques (95%) backed by real alerts**. Live IoT botnets submitting
+> Mirai credentials, a full Redis module-load RCE, a multi-arch botnet CDN, and
+> Docker daemon-takeover attempts — all captured, scored and replayable.
 > Full measurements, test results and a security review of the deployment:
 > **[docs/azure-run-2026-08-17.md](docs/azure-run-2026-08-17.md)**.
 > A full five-stage kill chain, captured and replayed end to end:
@@ -128,7 +128,7 @@ behind each decision.
 | [`honeypot/`](honeypot/) | The sensor. Async listeners for seven protocols, a shared deception layer, and a non-blocking batched event writer. |
 | [`pipeline/enrichment/`](pipeline/enrichment/) | GeoIP, ASN and local threat-intel. Offline-first: absent data looks absent, never guessed. |
 | [`pipeline/detection/`](pipeline/detection/) | A declarative YAML rule engine ([`rules.yaml`](pipeline/detection/rules.yaml)), a transparent additive scoring model, and [ATT&CK coverage](pipeline/detection/coverage.py). |
-| [`pipeline/reporting/`](pipeline/reporting/) | Daily Markdown summaries, a [chat digest](pipeline/reporting/digest.py) pushed to Discord/Slack/Teams, and export to CSV/JSONL/STIX/MISP/blocklist. |
+| [`pipeline/reporting/`](pipeline/reporting/) | Daily Markdown summaries, a [chat digest](pipeline/reporting/digest.py) pushed to Discord/Slack/Teams, and export to CSV/JSONL/STIX/MISP/blocklist over the API. |
 | [`storage/`](storage/) | ORM models, engine management (WAL-tuned SQLite, or Postgres), and the analytics queries the API and reports share. |
 | [`api/`](api/) | FastAPI read API plus a few triage endpoints. |
 | [`dashboard/`](dashboard/) | React dashboard: overview, live feed, session replay, attacker profiles, alert triage. |

@@ -333,3 +333,53 @@ class TestScoring:
     )
     def test_severity_bands(self, score, band):
         assert severity_for_score(score) == band
+
+
+class TestShippedMatchRules:
+    """The 'hard to trigger over the wire' rules, proven deterministically.
+
+    ftp_bounce and sensitive_file_access are match rules whose live firing
+    depends on probabilistic anonymous-login and a granted shell. The rule logic
+    itself is deterministic, so these pin it to the exact tag/field the services
+    emit — end-to-end proof that does not depend on a lucky session.
+    """
+
+    def _rule(self, rule_id: str) -> Rule:
+        rule = next((r for r in load_rules() if r.id == rule_id), None)
+        assert rule is not None, f"shipped rule {rule_id} missing"
+        return rule
+
+    def test_ftp_bounce_fires_on_service_tag(self, make_event):
+        # exactly what ftp_service records for a PORT command
+        ev = make_event(
+            service="ftp",
+            event_type="command",
+            command="PORT 45,13,2,9,0,80",
+            tags=["ftp-bounce-attempt"],
+        )
+        alerts = evaluate_rule(self._rule("ftp_bounce"), [ev])
+        assert len(alerts) == 1
+        assert "T1090" in alerts[0]["mitre"]
+
+    def test_ftp_bounce_ignores_ordinary_ftp(self, make_event):
+        ev = make_event(service="ftp", event_type="command", command="LIST", tags=["ftp-list"])
+        assert evaluate_rule(self._rule("ftp_bounce"), [ev]) == []
+
+    def test_sensitive_file_access_fires_on_shadow(self, make_event):
+        ev = make_event(service="telnet", event_type="command", command="cat /etc/shadow", tags=[])
+        alerts = evaluate_rule(self._rule("sensitive_file_access"), [ev])
+        assert len(alerts) == 1
+
+    def test_password_spray_needs_distinct_usernames(self, make_event):
+        base = utcnow() - dt.timedelta(minutes=5)
+        events = [
+            make_event(
+                event_type="auth_attempt",
+                username=f"user{i}",
+                password="P@ssw0rd2024",
+                ts=base + dt.timedelta(seconds=i),
+            )
+            for i in range(12)
+        ]
+        alerts = evaluate_rule(self._rule("password_spray"), events)
+        assert len(alerts) == 1

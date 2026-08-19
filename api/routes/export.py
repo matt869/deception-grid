@@ -66,6 +66,21 @@ def events_csv(
     return exporter.export_events_csv(db, since_hours=hours, limit=limit)
 
 
+@router.get("/events.jsonl", response_class=PlainTextResponse, summary="Events as JSONL")
+def events_jsonl(
+    db: OrmSession = Depends(get_db),
+    hours: float | None = Query(24, gt=0, le=24 * 365),
+    limit: int = Query(50000, ge=1, le=500000),
+) -> str:
+    """One JSON object per line — the shape most log pipelines ingest directly.
+
+    The exporter existed from the start but was reachable only from the CLI; this
+    is the missing route so the whole event stream is pullable over the same
+    tunnelled origin as every other export.
+    """
+    return exporter.export_events_jsonl(db, since_hours=hours, limit=limit)
+
+
 @router.get("/alerts.csv", response_class=PlainTextResponse, summary="Alerts as CSV")
 def alerts_csv(
     db: OrmSession = Depends(get_db),

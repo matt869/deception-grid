@@ -402,3 +402,27 @@ class TestSessionsAPI:
 
     def test_unknown_session_is_404(self, client):
         assert client.get("/api/sessions/does-not-exist").status_code == 404
+
+
+class TestExportAPI:
+    """Export endpoints — the deployable-intelligence surface."""
+
+    def test_events_csv(self, client):
+        r = client.get("/api/export/events.csv?hours=48&limit=10")
+        assert r.status_code == 200
+        assert "src_ip" in r.text.splitlines()[0]  # header row
+
+    def test_events_jsonl_route_exists(self, client):
+        """Regression: the exporter shipped from day one but had no route."""
+        import json
+
+        r = client.get("/api/export/events.jsonl?hours=48&limit=5")
+        assert r.status_code == 200
+        lines = [ln for ln in r.text.splitlines() if ln.strip()]
+        assert lines, "expected at least one JSONL record"
+        row = json.loads(lines[0])  # every line must be valid JSON
+        assert "src_ip" in row and "id" not in row
+
+    def test_blocklist_and_stix(self, client):
+        assert client.get("/api/export/blocklist?min_score=0").status_code == 200
+        assert client.get("/api/export/stix?min_score=0").json()["type"] == "bundle"
