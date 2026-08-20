@@ -39,3 +39,12 @@ fingerprint/full-mode split — no code change needed.
 
 Stack healthy, code current, pipeline verified end to end. No adjustments were
 required to the platform itself this run.
+
+## Follow-up quick probe
+
+A second small check the same day: 3 HTTP probes (`.git/HEAD`, `admin/config.php`,
+`server-status`) plus one telnet login (`admin`/`1234`) and a shell command.
+Telnet reached a shell and ran `cat /etc/hostname`; the sensor recorded the full
+connect → auth → shell → command → disconnect sequence and detection raised a
+new alert on the login. Confirms the pipeline is still live and capturing after
+the VM sync above.
