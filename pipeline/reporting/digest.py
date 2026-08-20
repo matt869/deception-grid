@@ -35,6 +35,7 @@ import sys
 from typing import Any
 
 from pipeline.alerting.notify import _detect_kind, post_webhook
+from pipeline.analysis.static import defang
 from pipeline.reporting.daily_summary import build_summary
 from storage.db import session_scope
 
@@ -55,8 +56,14 @@ QUIET_COLOR = 0x1BAF7A
 
 
 def _defang(url: str) -> str:
-    """Render a URL inert for a chat client: hxxp://evil[.]com/x."""
-    return url.replace("http", "hxxp", 1).replace(".", "[.]")
+    """Render a URL inert for a chat client: hxxp://evil[.]com/x.
+
+    Delegates so the digest and the payload analyser cannot drift apart. This
+    is a safety property, not formatting — two implementations means one of
+    them eventually stops defanging something and nobody notices until a live
+    malware URL is posted into a channel as a clickable link.
+    """
+    return defang(url)
 
 
 def _jsonable(value: Any) -> Any:

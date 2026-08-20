@@ -53,14 +53,31 @@ evidence doc compares what each of them caught.
 
 Ordered by value per hour of work.
 
-### Payload analysis · planned
-The sensor already stores captured droppers by SHA256 and never executes them.
-Add static analysis only: file type, ELF/PE structure, embedded strings and
-URLs, YARA matching, entropy. Surface the result on the attacker profile so a
-loader's payload sits next to the session that fetched it.
+### Payload analysis · engine done, surfacing next
+
+**Done — `pipeline/analysis/static.py`.** File typing from magic bytes, ELF and
+PE header parsing, embedded strings, defanged URL/IP/domain extraction, Shannon
+entropy with a packing heuristic, behavioural tagging from the strings table,
+and optional YARA when `yara-python` and rules are present. Runs standalone:
+
+```
+python -m pipeline.analysis.static --scan
+python -m pipeline.analysis.static data/payloads/<sha256>.bin --json
+```
+
+Architecture is the field that earns its place. IoT botnets ship one build per
+CPU family and the loader picks by `uname`, so `e_machine` records what the
+operator thought this sensor was — and `mips / static / stripped` is a shape
+the session transcript alone never shows.
+
+**Still to do:** persistence and surfacing. A `payloads` table keyed by SHA256,
+joined to the event that carried it, exposed on the attacker profile so a
+loader's dropper sits next to the session that fetched it. The analyser is a
+pure function over bytes today; nothing stores its output yet.
 
 *Constraint that does not move: nothing is ever executed, and nothing is ever
-fetched. Static analysis only.*
+fetched. Static analysis only. Every indicator the analyser returns is defanged
+before it leaves the function, and there is a test that says so.*
 
 ### Campaign clustering · planned
 Group sources by behavioural similarity — command sequences, credential sets,
