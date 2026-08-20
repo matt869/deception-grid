@@ -51,6 +51,10 @@ BUCKETS: dict[str, dt.timedelta] = {
 }
 
 
+# Batch size for IN clauses. SQLite's default host-variable limit is 999,
+# and an oversized IN is a hard error rather than a slow query.
+_IN_CHUNK = 500
+
 _EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
 
@@ -610,16 +614,49 @@ def rebuild_attackers(db: OrmSession, src_ips: Iterable[str] | None = None) -> i
     Pass ``src_ips`` to refresh only those rows (the incremental path used after
     a pipeline run); omit it to rebuild everything.
     """
+    from itertools import groupby
+
     from pipeline.detection.scoring import score_attacker  # local: avoids import cycle
 
     if src_ips is None:
-        ips = [r[0] for r in db.execute(select(distinct(Event.src_ip)))]
+        batches: list[list[str] | None] = [None]
     else:
         ips = list(dict.fromkeys(src_ips))
+        batches = [ips[i : i + _IN_CHUNK] for i in range(0, len(ips), _IN_CHUNK)]
 
     updated = 0
-    for ip in ips:
-        events = list(db.execute(select(Event).where(Event.src_ip == ip)).scalars())
+    for batch in batches:
+        # One ordered pass instead of a query per source. The previous version
+        # issued two queries per attacker — a SELECT for its events and a get()
+        # for its row — which is why ``tools/benchmark.py`` measured 177
+        # attackers/s. Grouping a single sorted result is the same work with
+        # two queries total per batch.
+        #
+        # ``yield_per`` keeps memory bounded by the largest single attacker
+        # rather than by the whole events table: a full rebuild on a busy
+        # sensor must not need the capture to fit in RAM.
+        event_stmt = select(Event).order_by(Event.src_ip).execution_options(yield_per=1000)
+        existing_stmt = select(Attacker)
+        if batch is not None:
+            event_stmt = event_stmt.where(Event.src_ip.in_(batch))
+            existing_stmt = existing_stmt.where(Attacker.src_ip.in_(batch))
+
+        existing = {row.src_ip: row for row in db.execute(existing_stmt).scalars()}
+
+        # No autoflush while the event cursor is open: a flush mid-iteration
+        # would emit the rows being built into the table being read.
+        with db.no_autoflush:
+            updated += _rebuild_group(db, event_stmt, existing, score_attacker, groupby)
+
+    db.flush()
+    return updated
+
+
+def _rebuild_group(db, event_stmt, existing, score_attacker, groupby) -> int:
+    """Aggregate one ordered event stream into attacker rows."""
+    updated = 0
+    for ip, group in groupby(db.execute(event_stmt).scalars(), key=lambda e: e.src_ip):
+        events = list(group)
         if not events:
             continue
 
@@ -632,7 +669,7 @@ def rebuild_attackers(db: OrmSession, src_ips: Iterable[str] | None = None) -> i
         geo = next((e for e in events if e.country), None)
         asn_evt = next((e for e in events if e.asn), None)
 
-        row = db.get(Attacker, ip) or Attacker(src_ip=ip)
+        row = existing.get(ip) or Attacker(src_ip=ip)
         row.first_seen = min(ensure_utc(e.ts) for e in events)
         row.last_seen = max(ensure_utc(e.ts) for e in events)
         row.event_count = len(events)
@@ -664,7 +701,6 @@ def rebuild_attackers(db: OrmSession, src_ips: Iterable[str] | None = None) -> i
         db.add(row)
         updated += 1
 
-    db.flush()
     return updated
 
 

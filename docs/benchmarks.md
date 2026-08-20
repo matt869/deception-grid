@@ -75,6 +75,25 @@ window. Two fixes, in order of how embarrassing they are:
 |---|---|---|
 | `query:summary` | 67.3ms p50 | 30.2ms p50 |
 | `query:timeseries` | 162.1ms p50 | 37.4ms p50 |
+| `rebuild_attackers` | 177/s | 258/s |
+
+**`rebuild_attackers` was an N+1**: two queries per attacker — a `SELECT` for
+its events and a `get()` for its row — so 512 queries for 256 attackers. Now one
+ordered pass grouped with `itertools.groupby`, two queries per batch, with
+`yield_per` so a full rebuild is bounded by the largest single attacker rather
+than by the whole events table. **177 → 258 attackers/s.**
+
+That is a smaller win than the query fixes, and the profile says why: the
+remaining time is inherent rather than wasted. Of ~1.7s, roughly 0.5s is
+building 20k ORM `Event` objects and 0.5s is `score_attacker` itself.
+
+An optimisation that did **not** work, recorded so nobody spends the afternoon
+again: narrowing the load with `load_only()` to skip the unused JSON and text
+columns measured *slower* than loading everything (474ms vs 461ms) — the
+deferred-column machinery costs about what the skipped decoding saves. Selecting
+plain column rows instead of ORM objects does help (244ms), but that is ~15% of
+the total for a real semantic change, since `score_attacker` would then receive
+`Row` objects instead of `Event`s. Left alone deliberately.
 
 ### The bug that fix nearly shipped with
 
