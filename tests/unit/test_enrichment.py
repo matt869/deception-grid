@@ -7,6 +7,8 @@ honest and the sensor quiet.
 
 from __future__ import annotations
 
+import pytest
+
 from pipeline.enrichment import asn, geoip, threat_intel
 
 # --------------------------------------------------------------------------- #
@@ -164,3 +166,145 @@ class TestEnrichEvent:
 
         event = {"src_ip": "!!!garbage!!!", "user_agent": None}
         enrich_event(event)  # must not raise
+
+
+# --------------------------------------------------------------------------- #
+# ASN prefix table
+# --------------------------------------------------------------------------- #
+#
+# These use real routable ranges (45.33.32.0/24, 2606:4700::/32) rather than the
+# documentation ranges the rest of the suite uses for source addresses. That is
+# not a style choice: ``ipaddress`` classifies the RFC 5737 and RFC 3849
+# documentation blocks as *private*, so ``asn.lookup("203.0.113.9")`` returns
+# ``asn_source="private"`` and short-circuits before the prefix table is ever
+# consulted. A test written with 203.0.113.x would pass while covering nothing.
+
+
+@pytest.fixture
+def prefix_table(tmp_path, monkeypatch):
+    """Point the ASN module at a temp prefix table and reset its caches.
+
+    The mmdb reader is stubbed out as well, not assumed absent. A deployment
+    that has GeoLite2-ASN installed would otherwise never reach the prefix
+    table and these tests would pass without exercising a single line of it —
+    the same trap ``test_ip_with_no_indicator_loaded_scores_zero`` documents.
+    """
+    monkeypatch.setattr(asn, "_get_reader", lambda: None)
+
+    def _write(content: str):
+        path = tmp_path / "asn_prefixes.tsv"
+        path.write_text(content, encoding="utf-8")
+        monkeypatch.setattr(asn, "PREFIX_TABLE", path)
+        asn.close()  # drop any table cached by an earlier test
+        return path
+
+    yield _write
+    asn.close()  # and don't leak this one into the next
+
+
+class TestASNPrefixTable:
+    def test_lookup_resolves_from_the_table(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\tExample Networks\n")
+        result = asn.lookup("45.33.32.9")
+        assert result["asn"] == 64500
+        assert result["as_org"] == "Example Networks"
+        assert result["asn_source"] == "prefix-table"
+
+    def test_longest_prefix_wins(self, prefix_table):
+        # Routing picks the most specific route; so must we. Listed least
+        # specific first so a naive first-match would return the wrong one.
+        prefix_table(
+            "45.0.0.0/8\t64500\tBroad Allocation\n45.33.32.0/24\t64501\tSpecific Carve-Out\n"
+        )
+        assert asn.lookup("45.33.32.9")["asn"] == 64501
+
+    def test_address_outside_every_prefix_is_unavailable(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\tExample Networks\n")
+        result = asn.lookup("8.8.8.8")
+        assert result["asn"] is None
+        assert result["asn_source"] == "unavailable"
+
+    def test_missing_table_file_is_not_an_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(asn, "_get_reader", lambda: None)
+        monkeypatch.setattr(asn, "PREFIX_TABLE", tmp_path / "does-not-exist.tsv")
+        asn.close()
+        try:
+            assert asn.lookup("45.33.32.9")["asn_source"] == "unavailable"
+        finally:
+            asn.close()
+
+    def test_as_prefixed_numbers_are_accepted(self, prefix_table):
+        prefix_table("45.33.32.0/24\tAS64500\tExample Networks\n")
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+
+    def test_org_column_is_optional(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\n")
+        result = asn.lookup("45.33.32.9")
+        assert result["asn"] == 64500
+        assert result["as_org"] is None  # empty must read as missing, not ""
+
+    def test_comments_and_blank_lines_are_skipped(self, prefix_table):
+        prefix_table("# RIR export, trimmed\n\n45.33.32.0/24\t64500\tExample Networks\n\n# end\n")
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+
+    def test_malformed_lines_do_not_discard_the_good_ones(self, prefix_table):
+        # One bad line in a downloaded RIR export must not blank the table.
+        prefix_table(
+            "not-a-prefix\tnonsense\n"
+            "45.33.32.0/24\tnot-a-number\n"
+            "only-one-column\n"
+            "45.33.32.0/24\t64500\tExample Networks\n"
+        )
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+
+    def test_comma_separated_fallback_is_parsed(self, prefix_table):
+        prefix_table("45.33.32.0/24,64500,Example Networks\n")
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+
+    def test_host_address_is_accepted_as_a_prefix(self, prefix_table):
+        # strict=False, so a bare address means a /32.
+        prefix_table("45.33.32.9\t64500\tExample Networks\n")
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+        assert asn.lookup("45.33.32.10")["asn"] is None
+
+    def test_ipv6_prefixes_resolve(self, prefix_table):
+        prefix_table("2606:4700::/32\t64500\tExample IPv6\n")
+        assert asn.lookup("2606:4700::1")["asn"] == 64500
+
+    def test_address_families_do_not_cross_match(self, prefix_table):
+        prefix_table("2606:4700::/32\t64500\tExample IPv6\n")
+        assert asn.lookup("45.33.32.9")["asn"] is None
+
+    def test_table_is_cached_after_the_first_read(self, prefix_table):
+        path = prefix_table("45.33.32.0/24\t64500\tExample Networks\n")
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+        path.unlink()  # cache must survive the file going away
+        assert asn.lookup("45.33.32.9")["asn"] == 64500
+
+    def test_close_forces_a_reload(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\tOld Org\n")
+        assert asn.lookup("45.33.32.9")["as_org"] == "Old Org"
+        prefix_table("45.33.32.0/24\t64500\tNew Org\n")
+        assert asn.lookup("45.33.32.9")["as_org"] == "New Org"
+
+    def test_private_addresses_never_reach_the_table(self, prefix_table):
+        # 10.0.0.0/8 in the table must still not produce an ASN for a private
+        # source — those are our own network, not somebody's allocation.
+        prefix_table("10.0.0.0/8\t64500\tShould Never Match\n")
+        result = asn.lookup("10.1.2.3")
+        assert result["asn"] is None
+        assert result["asn_source"] == "private"
+
+    def test_link_local_is_treated_as_private(self, prefix_table):
+        prefix_table("169.254.0.0/16\t64500\tShould Never Match\n")
+        assert asn.lookup("169.254.1.1")["asn_source"] == "private"
+
+    def test_enrich_adds_operator_tags_from_the_table(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\tDigitalOcean, LLC\n")
+        result = asn.enrich("45.33.32.9")
+        assert result["asn"] == 64500
+        assert "hosting-provider" in result["asn_tags"]
+
+    def test_enrich_on_an_unknown_address_yields_no_tags(self, prefix_table):
+        prefix_table("45.33.32.0/24\t64500\tExample Networks\n")
+        assert asn.enrich("8.8.8.8")["asn_tags"] == []
