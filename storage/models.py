@@ -315,6 +315,54 @@ class Alert(Base):
         return f"<Alert {self.rule_id} {self.src_ip} x{self.hit_count}>"
 
 
+class Payload(Base):
+    """Static analysis of one captured artefact, keyed by content hash.
+
+    Like :class:`Attacker`, this is derived and never the source of truth: the
+    bytes on disk under ``data/payloads/`` are. Dropping this table and
+    re-running :func:`pipeline.analysis.store.scan_and_store` is always safe.
+
+    ``first_seen``, ``last_seen`` and ``event_count`` are rolled up from the
+    events whose ``payload_sha256`` matches, which is what puts a dropper next
+    to the session that fetched it.
+    """
+
+    __tablename__ = "payloads"
+
+    sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
+    size: Mapped[int] = mapped_column(Integer, default=0)
+
+    file_type: Mapped[str | None] = mapped_column(String(32), index=True)
+    mime: Mapped[str | None] = mapped_column(String(96))
+
+    # Architecture is indexed because "what were they building for?" is the
+    # question this table exists to answer across a whole capture.
+    arch: Mapped[str | None] = mapped_column(String(24), index=True)
+    linkage: Mapped[str | None] = mapped_column(String(16))
+    stripped: Mapped[bool | None] = mapped_column(Boolean)
+
+    entropy: Mapped[float] = mapped_column(Float, default=0.0)
+    likely_packed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+    strings_count: Mapped[int] = mapped_column(Integer, default=0)
+    behaviour_tags: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    yara_matches: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    # Indicators are stored exactly as the analyser returned them — defanged.
+    iocs: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=dict)
+    format_details: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=dict)
+
+    first_seen: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    event_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    analyzed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Payload {self.sha256[:12]} {self.file_type} {self.arch or '-'}>"
+
+
 class Indicator(Base):
     """A local threat-intel indicator.
 
@@ -345,6 +393,7 @@ __all__ = [
     "Session",
     "Attacker",
     "Alert",
+    "Payload",
     "Indicator",
     "Service",
     "EventType",

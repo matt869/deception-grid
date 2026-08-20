@@ -13,6 +13,7 @@ from api.schemas import (
     EventOut,
     Message,
     Page,
+    PayloadOut,
     ScoreExplanation,
     SessionOut,
     redact_passwords,
@@ -120,6 +121,11 @@ def get_attacker(
     detail = AttackerDetail.model_validate(attacker)
     detail.sessions = [SessionOut.model_validate(s) for s in sessions]
     detail.recent_events = items
+    # The join that puts a dropper next to the session that fetched it. Empty
+    # for most sources: a scanner that never uploads anything has no artefacts.
+    detail.payloads = [
+        PayloadOut.model_validate(p) for p in queries.payloads_for_attacker(db, src_ip)
+    ]
 
     if explain:
         from pipeline.detection.scoring import explain as explain_score

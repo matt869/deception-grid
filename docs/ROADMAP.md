@@ -53,31 +53,37 @@ evidence doc compares what each of them caught.
 
 Ordered by value per hour of work.
 
-### Payload analysis · engine done, surfacing next
+### Payload analysis · done
 
-**Done — `pipeline/analysis/static.py`.** File typing from magic bytes, ELF and
-PE header parsing, embedded strings, defanged URL/IP/domain extraction, Shannon
-entropy with a packing heuristic, behavioural tagging from the strings table,
-and optional YARA when `yara-python` and rules are present. Runs standalone:
+File typing from magic bytes, ELF and PE header parsing, embedded strings,
+defanged URL/IP/domain extraction, Shannon entropy with a packing heuristic,
+behavioural tagging from the strings table, and optional YARA when
+`yara-python` and rules are present.
 
 ```
-python -m pipeline.analysis.static --scan
-python -m pipeline.analysis.static data/payloads/<sha256>.bin --json
+python -m pipeline.analysis.static --scan          # analyse, print
+python -m pipeline.analysis.store                  # analyse, persist
+GET /api/payloads?arch=mips
+GET /api/payloads/architectures
+GET /api/payloads/<sha256>                         # + the sources that dropped it
+GET /api/attackers/<ip>                            # now carries `payloads`
 ```
 
 Architecture is the field that earns its place. IoT botnets ship one build per
 CPU family and the loader picks by `uname`, so `e_machine` records what the
 operator thought this sensor was — and `mips / static / stripped` is a shape
-the session transcript alone never shows.
+the session transcript alone never shows. `/api/payloads/architectures` reads
+as a census of what the internet believes is listening on these ports.
 
-**Still to do:** persistence and surfacing. A `payloads` table keyed by SHA256,
-joined to the event that carried it, exposed on the attacker profile so a
-loader's dropper sits next to the session that fetched it. The analyser is a
-pure function over bytes today; nothing stores its output yet.
+`pipeline/analysis/static.py` is a pure function over bytes with no database
+import; `store.py` is the seam that persists results and rolls them up against
+the events carrying each hash. The `payloads` table is derived the same way
+`attackers` is — drop it and rescan, nothing is lost.
 
 *Constraint that does not move: nothing is ever executed, and nothing is ever
-fetched. Static analysis only. Every indicator the analyser returns is defanged
-before it leaves the function, and there is a test that says so.*
+fetched. Static analysis only. Every indicator is defanged before it leaves the
+analyser, and there is a test asserting that at each layer it crosses — the
+function, the database row, and the JSON the browser receives.*
 
 ### Campaign clustering · planned
 Group sources by behavioural similarity — command sequences, credential sets,

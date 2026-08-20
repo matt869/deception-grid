@@ -23,6 +23,7 @@ from storage.models import (
     Attacker,
     Event,
     EventType,
+    Payload,
     Session,
     Severity,
     ensure_utc,
@@ -604,6 +605,117 @@ def rebuild_attackers(db: OrmSession, src_ips: Iterable[str] | None = None) -> i
 
 
 # --------------------------------------------------------------------------- #
+# Payloads
+# --------------------------------------------------------------------------- #
+
+PAYLOAD_SORT_FIELDS = ("last_seen", "first_seen", "size", "entropy", "event_count")
+
+
+def list_payloads(
+    db: OrmSession,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    file_type: str | None = None,
+    arch: str | None = None,
+    behaviour_tag: str | None = None,
+    packed_only: bool = False,
+    sort: str = "last_seen",
+) -> tuple[list[Payload], int]:
+    """Analysed artefacts, newest sighting first by default."""
+    stmt = select(Payload)
+    count_stmt = select(func.count()).select_from(Payload)
+
+    conditions = []
+    if file_type:
+        conditions.append(Payload.file_type == file_type)
+    if arch:
+        conditions.append(Payload.arch == arch)
+    if packed_only:
+        conditions.append(Payload.likely_packed.is_(True))
+    for cond in conditions:
+        stmt = stmt.where(cond)
+        count_stmt = count_stmt.where(cond)
+
+    sort_col = {
+        "last_seen": Payload.last_seen,
+        "first_seen": Payload.first_seen,
+        "size": Payload.size,
+        "entropy": Payload.entropy,
+        "event_count": Payload.event_count,
+    }.get(sort, Payload.last_seen)
+
+    total = db.execute(count_stmt).scalar_one()
+    stmt = stmt.order_by(sort_col.desc()).limit(limit).offset(offset)
+    rows = list(db.execute(stmt).scalars())
+
+    # behaviour_tags is a JSON column, and JSON containment is not portable
+    # across SQLite and PostgreSQL. Filtering in Python keeps one code path;
+    # the tag vocabulary is small enough that this is not the expensive part.
+    if behaviour_tag:
+        rows = [r for r in rows if behaviour_tag in (r.behaviour_tags or [])]
+        total = len(rows)
+
+    return rows, int(total)
+
+
+def get_payload(db: OrmSession, sha256: str) -> Payload | None:
+    return db.get(Payload, sha256)
+
+
+def payloads_for_attacker(db: OrmSession, src_ip: str, limit: int = 20) -> list[Payload]:
+    """Artefacts this source carried, most recently seen first.
+
+    This is the join that puts a dropper next to the session that fetched it.
+    """
+    stmt = (
+        select(Payload)
+        .join(Event, Event.payload_sha256 == Payload.sha256)
+        .where(Event.src_ip == src_ip)
+        .group_by(Payload.sha256)
+        .order_by(func.max(Event.ts).desc())
+        .limit(limit)
+    )
+    return list(db.execute(stmt).scalars())
+
+
+def payload_sources(db: OrmSession, sha256: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Which sources delivered this artefact, and when."""
+    stmt = (
+        select(
+            Event.src_ip,
+            func.count(Event.id).label("events"),
+            func.min(Event.ts).label("first_seen"),
+            func.max(Event.ts).label("last_seen"),
+        )
+        .where(Event.payload_sha256 == sha256)
+        .group_by(Event.src_ip)
+        .order_by(func.max(Event.ts).desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "src_ip": row.src_ip,
+            "events": int(row.events),
+            "first_seen": ensure_utc(row.first_seen),
+            "last_seen": ensure_utc(row.last_seen),
+        }
+        for row in db.execute(stmt)
+    ]
+
+
+def payload_arch_breakdown(db: OrmSession) -> list[dict[str, Any]]:
+    """Counts per architecture — what the operators thought this sensor was."""
+    stmt = (
+        select(Payload.arch, func.count(Payload.sha256).label("count"))
+        .where(Payload.arch.is_not(None))
+        .group_by(Payload.arch)
+        .order_by(func.count(Payload.sha256).desc())
+    )
+    return [{"arch": row.arch, "count": int(row.count)} for row in db.execute(stmt)]
+
+
+# --------------------------------------------------------------------------- #
 # Alerts
 # --------------------------------------------------------------------------- #
 
@@ -687,6 +799,12 @@ __all__ = [
     "get_attacker",
     "attacker_sessions",
     "rebuild_attackers",
+    "list_payloads",
+    "get_payload",
+    "payloads_for_attacker",
+    "payload_sources",
+    "payload_arch_breakdown",
+    "PAYLOAD_SORT_FIELDS",
     "list_alerts",
     "set_alert_status",
     "alert_counts_by_rule",

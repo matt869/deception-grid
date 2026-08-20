@@ -197,10 +197,69 @@ class ScoreExplanation(BaseModel):
     events_considered: int
 
 
+# --------------------------------------------------------------------------- #
+# Payloads
+# --------------------------------------------------------------------------- #
+
+
+class PayloadOut(BaseModel):
+    """One statically analysed artefact.
+
+    ``iocs`` arrives from the analyser already defanged (``hxxp://evil[.]com``)
+    and is served that way. Re-fanging is deliberately not offered here: this
+    response is rendered in a browser and pasted into tickets, and a live link
+    to a malware host is exactly what must not travel by accident.
+    """
+
+    model_config = ORM
+
+    sha256: str
+    size: int = 0
+    file_type: str | None = None
+    mime: str | None = None
+
+    arch: str | None = None
+    linkage: str | None = None
+    stripped: bool | None = None
+
+    entropy: float = 0.0
+    likely_packed: bool = False
+
+    strings_count: int = 0
+    behaviour_tags: list[str] = Field(default_factory=list)
+    yara_matches: list[str] = Field(default_factory=list)
+    iocs: dict[str, Any] = Field(default_factory=dict, description="Defanged indicators")
+    format_details: dict[str, Any] = Field(default_factory=dict)
+
+    first_seen: dt.datetime | None = None
+    last_seen: dt.datetime | None = None
+    event_count: int = 0
+    analyzed_at: dt.datetime | None = None
+
+
+class PayloadSource(BaseModel):
+    """A source that delivered a given artefact."""
+
+    src_ip: str
+    events: int
+    first_seen: dt.datetime | None = None
+    last_seen: dt.datetime | None = None
+
+
+class PayloadDetail(PayloadOut):
+    sources: list[PayloadSource] = Field(default_factory=list)
+
+
+class ArchRow(BaseModel):
+    arch: str
+    count: int
+
+
 class AttackerDetail(AttackerOut):
     sessions: list[SessionOut] = Field(default_factory=list)
     recent_events: list[EventOut] = Field(default_factory=list)
     score_explanation: ScoreExplanation | None = None
+    payloads: list[PayloadOut] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -384,6 +443,10 @@ __all__ = [
     "AttackerDetail",
     "ScoreExplanation",
     "ScoreComponents",
+    "PayloadOut",
+    "PayloadDetail",
+    "PayloadSource",
+    "ArchRow",
     "AlertOut",
     "AlertStatusUpdate",
     "RuleOut",
