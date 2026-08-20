@@ -61,6 +61,10 @@ export const api = {
   attacker: (ip) => request(`/attackers/${ip}`),
   attackerMap: (hours, limit) => request(`/attackers/map${qs({ hours, limit })}`),
 
+  payloads: (params) => request(`/payloads${qs(params)}`),
+  payload: (sha256) => request(`/payloads/${sha256}`),
+  payloadArchitectures: () => request("/payloads/architectures"),
+
   alerts: (params) => request(`/alerts${qs(params)}`),
   alertsByRule: (hours) => request(`/alerts/by-rule${qs({ hours })}`),
   rules: () => request("/alerts/rules"),
@@ -89,6 +93,15 @@ export function severityClass(sev) {
 export function fmtNumber(n) {
   if (n === null || n === undefined) return "—";
   return n.toLocaleString();
+}
+
+// Bytes -> "188 B" / "4.2 KB" / "1.1 MB". Payload sizes span six orders of
+// magnitude, so a raw byte count is unreadable in a table.
+export function fmtBytes(n) {
+  if (n === null || n === undefined) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function fmtTime(iso) {

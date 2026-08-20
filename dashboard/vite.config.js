@@ -15,4 +15,13 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    // jsdom rather than happy-dom: the components under test render tables and
+    // read layout-adjacent properties, and jsdom's DOM is the more faithful of
+    // the two.
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.js",
+    include: ["src/**/*.test.{js,jsx}"],
+  },
 });

@@ -46,6 +46,11 @@ services:
       # Docker API bait. The sensor never talks to a real daemon and the host's
       # own docker socket is never mounted — this only listens.
       - "2375:2375"   # docker
+    volumes:
+      # Captured artefacts and the generated SSH host key live under /app/data.
+      # Without this volume both are lost the moment the container is recreated
+      # — and a captured dropper is the one thing here that cannot be recreated.
+      - sensor_data:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -60,6 +65,12 @@ services:
       # The dashboard is served same-origin via nginx, so the browser never
       # calls the API cross-origin; no permissive CORS needed.
       API_CORS_ORIGINS: http://localhost:8080
+    volumes:
+      # Read-only view of the payload store so `python -m pipeline.analysis.store`
+      # can run in the container that has the database. The analyser needs both
+      # the bytes and somewhere to put the results, and only the sensor writes
+      # here — hence ro.
+      - sensor_data:/app/data:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -79,3 +90,4 @@ services:
 
 volumes:
   pgdata:
+  sensor_data:

@@ -1,5 +1,14 @@
 import { useParams, Link } from "react-router-dom";
-import { api, classColor, fmtNumber, fmtTime, fmtRelative, flag, SERVICE_COLORS } from "../api.js";
+import {
+  api,
+  classColor,
+  fmtBytes,
+  fmtNumber,
+  fmtTime,
+  fmtRelative,
+  flag,
+  SERVICE_COLORS,
+} from "../api.js";
 import { useApi } from "../useApi.js";
 import { Loading, ErrorBox } from "../components/common.jsx";
 import EventTable from "../components/EventTable.jsx";
@@ -118,6 +127,52 @@ export default function AttackerProfile() {
                            accent="var(--svc-telnet)" emptyLabel="No passwords." />
         </div>
       </div>
+
+      {data.payloads?.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }} data-testid="attacker-payloads">
+          <h3>Payloads delivered ({data.payloads.length})</h3>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Statically analysed. Nothing was executed, and the indicators below are defanged.
+          </div>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>SHA256</th>
+                  <th>Type</th>
+                  <th>Arch</th>
+                  <th>Build</th>
+                  <th className="right">Size</th>
+                  <th>Behaviour</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.payloads.map((p) => (
+                  <tr key={p.sha256}>
+                    <td className="mono" title={p.sha256}>
+                      {p.sha256.slice(0, 12)}…
+                    </td>
+                    <td>{p.file_type || "—"}</td>
+                    <td className="mono">{p.arch || "—"}</td>
+                    <td className="muted">
+                      {[p.linkage, p.stripped ? "stripped" : null].filter(Boolean).join(" · ") ||
+                        "—"}
+                    </td>
+                    <td className="right mono">{fmtBytes(p.size)}</td>
+                    <td>
+                      {(p.behaviour_tags || []).slice(0, 4).map((t) => (
+                        <span key={t} className="chip">
+                          {t}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {data.sessions?.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>

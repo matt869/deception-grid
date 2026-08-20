@@ -67,7 +67,7 @@ jobs:
           kill $API_PID
 
   frontend:
-    name: Frontend (build)
+    name: Frontend (tests + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,8 +76,14 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
-      - name: Install and build
+      - name: Install
         working-directory: dashboard
-        run: |
-          npm install --no-audit --no-fund
-          npm run build
+        run: npm install --no-audit --no-fund
+
+      - name: Test (vitest)
+        working-directory: dashboard
+        run: npm test
+
+      - name: Build
+        working-directory: dashboard
+        run: npm run build
