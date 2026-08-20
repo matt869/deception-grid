@@ -125,3 +125,110 @@ def burst(make_event):
         ]
 
     return _burst
+
+
+# --------------------------------------------------------------------------- #
+# Protocol harness
+# --------------------------------------------------------------------------- #
+#
+# Drives a service's ``handle_session`` against a scripted byte stream with no
+# sockets and no database. ``asyncio.StreamReader`` is the real class fed by
+# hand, so the parsers under test see exactly the framing a peer would send —
+# short reads, missing terminators and all.
+
+
+class RecordingLogger:
+    """EventLogger stand-in that keeps everything in memory."""
+
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+        self.sessions: list[dict] = []
+
+    def emit(self, event: dict) -> bool:
+        self.events.append(event)
+        return True
+
+    def emit_session(self, row: dict) -> bool:
+        self.sessions.append(row)
+        return True
+
+    # -- assertion helpers -------------------------------------------------
+
+    def tags(self) -> set[str]:
+        return {tag for event in self.events for tag in event.get("tags") or []}
+
+    def of_type(self, event_type) -> list[dict]:
+        wanted = getattr(event_type, "value", event_type)
+        return [e for e in self.events if e["event_type"] == wanted]
+
+    def tagged(self, tag: str) -> list[dict]:
+        return [e for e in self.events if tag in (e.get("tags") or [])]
+
+
+class FakeWriter:
+    """StreamWriter stand-in that accumulates what the service sent."""
+
+    def __init__(self) -> None:
+        self.chunks: list[bytes] = []
+        self.closed = False
+
+    def write(self, data: bytes) -> None:
+        self.chunks.append(data)
+
+    async def drain(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self.closed = True
+
+    async def wait_closed(self) -> None:
+        pass
+
+    def get_extra_info(self, name, default=None):
+        return ("192.0.2.77", 51234) if name == "peername" else default
+
+    @property
+    def text(self) -> str:
+        return b"".join(self.chunks).decode("utf-8", "replace")
+
+
+@pytest.fixture
+def protocol_harness():
+    """Run one scripted conversation against a service class.
+
+    Returns ``(writer, logger, session)`` so a test can assert on the bytes
+    sent back, the events recorded, and the end state of the session.
+    """
+    import asyncio
+
+    from honeypot.config import Settings
+    from honeypot.session import HoneypotSession, SessionRegistry
+
+    def _run(service_class, script: bytes, **settings_overrides):
+        settings = Settings(**settings_overrides)
+        logger = RecordingLogger()
+        registry = SessionRegistry(settings)
+        service = service_class(settings, logger, registry, port=0)
+
+        writer = FakeWriter()
+        session = HoneypotSession(
+            service=service.name,
+            src_ip="192.0.2.77",
+            src_port=51234,
+            dst_port=0,
+            logger=logger,
+            settings=settings,
+        )
+
+        async def _drive():
+            # StreamReader binds to the running loop at construction, so it has
+            # to be built in here rather than by the caller.
+            reader = asyncio.StreamReader()
+            reader.feed_data(script)
+            reader.feed_eof()
+            await service.handle_session(session, reader, writer)
+
+        asyncio.run(_drive())
+        return writer, logger, session
+
+    return _run
