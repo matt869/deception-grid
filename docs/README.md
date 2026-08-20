@@ -7,6 +7,7 @@ Guides and evidence for Deception Grid.
 - [deployment-azure.md](deployment-azure.md) — stand up the sensor on an Azure VM
 - [event_schema.md](event_schema.md) — the shape of a captured event
 - [detection_rules.md](detection_rules.md) — how the rule engine and scoring work
+- [benchmarks.md](benchmarks.md) — ingest, detection and query performance, and what the first run fixed
 - [ROADMAP.md](ROADMAP.md) — where the project is going next
 
 ## Evidence from the live sensor

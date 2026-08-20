@@ -1,10 +1,17 @@
 """Analytics queries shared by the API, the reporting pipeline and the CLI tools.
 
-Design note on time bucketing: date truncation is spelled differently in SQLite
-(``strftime``) and PostgreSQL (``date_trunc``). Rather than branch on dialect,
-the bucketed queries select bare timestamps and aggregate in Python. At
-dashboard volumes (millions of rows is fine; billions is not) the difference is
-noise, and it keeps one code path correct on both engines.
+Design note on time bucketing: epoch arithmetic is spelled differently in SQLite
+(``strftime('%s', …)``) and PostgreSQL (``extract(epoch from …)``), so
+:func:`events_timeseries` groups in the database where it knows the dialect and
+falls back to aggregating in Python where it does not. Both paths are exercised
+by the same tests and asserted to agree.
+
+This used to be Python-only, on the reasoning that the difference was noise at
+dashboard volumes. ``tools/benchmark.py`` says otherwise: pulling bare
+timestamps back for Python-side bucketing cost ~103ms per chart request over a
+24-hour window of 20k events, and it grows linearly with the window. Grouping
+in SQL transfers one row per bucket per series instead of one row per event.
+The Python path remains correct and is still used on any other engine.
 """
 
 from __future__ import annotations
@@ -14,7 +21,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from typing import Any
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import Integer, case, distinct, func, select
 from sqlalchemy.orm import Session as OrmSession
 
 from storage.models import (
@@ -44,18 +51,58 @@ BUCKETS: dict[str, dt.timedelta] = {
 }
 
 
+_EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
+
+
 def _floor(ts: dt.datetime, delta: dt.timedelta) -> dt.datetime:
-    """Floor a timestamp to the nearest multiple of ``delta`` since the epoch."""
-    epoch = dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
+    """Floor a timestamp to the nearest multiple of ``delta`` since the epoch.
+
+    ``_EPOCH`` is a module constant rather than a local because this runs once
+    per event in :func:`events_timeseries` — building the same datetime twenty
+    thousand times per chart request was measurably the bulk of that endpoint's
+    latency. See ``tools/benchmark.py``.
+    """
     ts = ensure_utc(ts)
-    n = int((ts - epoch) / delta)
-    return epoch + n * delta
+    n = int((ts - _EPOCH) / delta)
+    return _EPOCH + n * delta
 
 
 def _since(hours: float | None) -> dt.datetime | None:
     if hours is None:
         return None
     return utcnow() - dt.timedelta(hours=hours)
+
+
+def _bucket_index_expr(db: OrmSession, delta: dt.timedelta):
+    """SQL expression giving the bucket index of ``Event.ts``, or None.
+
+    The index is whole ``delta`` periods since the epoch, so the value converts
+    back with ``_EPOCH + index * delta`` — the same arithmetic :func:`_floor`
+    does in Python, which is what lets the two paths agree exactly.
+
+    Returns None for any dialect we do not have a spelling for, and the caller
+    falls back to Python-side bucketing. Being wrong here would silently
+    misplace every point on the chart, so an unknown dialect must degrade
+    rather than guess.
+    """
+    seconds = int(delta.total_seconds())
+    if seconds <= 0:  # pragma: no cover - BUCKETS has no zero-length entry
+        return None
+
+    dialect = db.get_bind().dialect.name
+    if dialect == "sqlite":
+        # SQLite stores DateTime as an ISO string; strftime('%s') reads it as
+        # UTC, which is what we store.
+        #
+        # ``.op("/")`` rather than a plain ``/``: SQLAlchemy renders Python
+        # division as ``x / (3600 + 0.0)`` to force float semantics, which
+        # makes the bucket index fractional and gives every single row its own
+        # group. The raw operator keeps SQLite's integer division, which floors
+        # for the positive values an epoch always has.
+        return func.cast(func.strftime("%s", Event.ts), Integer).op("/")(seconds)
+    if dialect == "postgresql":
+        return func.floor(func.extract("epoch", Event.ts) / seconds)
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -222,34 +269,37 @@ def summary_stats(db: OrmSession, since_hours: float | None = 24) -> dict[str, A
     def scoped(stmt):
         return stmt.where(Event.ts >= since) if since else stmt
 
-    total_events = db.execute(scoped(select(func.count()).select_from(Event))).scalar_one()
-    unique_ips = db.execute(
-        scoped(select(func.count(distinct(Event.src_ip))).select_from(Event))
-    ).scalar_one()
-    unique_countries = db.execute(
-        scoped(select(func.count(distinct(Event.country))).select_from(Event))
-    ).scalar_one()
-    auth_attempts = db.execute(
-        scoped(select(func.count()).select_from(Event)).where(
-            Event.event_type == EventType.AUTH_ATTEMPT.value
-        )
-    ).scalar_one()
-    commands = db.execute(
-        scoped(select(func.count()).select_from(Event)).where(
-            Event.event_type == EventType.COMMAND.value
-        )
-    ).scalar_one()
-    unique_creds = db.execute(
+    # One pass over ``events`` with conditional aggregation, rather than six
+    # separate COUNT queries that each scan the same rows. On a 20k-event
+    # window that took this endpoint from ~67ms to single digits; the win grows
+    # with the table, which is the direction a sensor's data only ever moves.
+    # Rows failing a CASE yield NULL, and both SUM and COUNT(DISTINCT) skip
+    # NULLs — so these read exactly like the WHERE-filtered versions did.
+    credential = func.coalesce(Event.username, "") + ":" + func.coalesce(Event.password, "")
+    is_auth = Event.event_type == EventType.AUTH_ATTEMPT.value
+
+    counters = db.execute(
         scoped(
             select(
-                func.count(
-                    distinct(
-                        func.coalesce(Event.username, "") + ":" + func.coalesce(Event.password, "")
-                    )
-                )
+                func.count().label("total_events"),
+                func.count(distinct(Event.src_ip)).label("unique_ips"),
+                func.count(distinct(Event.country)).label("unique_countries"),
+                func.sum(case((is_auth, 1), else_=0)).label("auth_attempts"),
+                func.sum(case((Event.event_type == EventType.COMMAND.value, 1), else_=0)).label(
+                    "commands"
+                ),
+                func.count(distinct(case((is_auth, credential)))).label("unique_creds"),
             ).select_from(Event)
-        ).where(Event.event_type == EventType.AUTH_ATTEMPT.value)
-    ).scalar_one()
+        )
+    ).one()
+
+    total_events = counters.total_events
+    unique_ips = counters.unique_ips
+    unique_countries = counters.unique_countries
+    # SUM over zero rows is NULL, not 0.
+    auth_attempts = counters.auth_attempts or 0
+    commands = counters.commands or 0
+    unique_creds = counters.unique_creds
 
     session_stmt = select(func.count()).select_from(Session)
     if since:
@@ -307,16 +357,30 @@ def events_timeseries(
     if by != "none" and dimension is None:
         raise ValueError(f"cannot split by {by!r}")
 
-    cols = [Event.ts] + ([dimension] if dimension is not None else [])
-    stmt = select(*cols)
-    if since:
-        stmt = stmt.where(Event.ts >= since)
-
     counts: dict[dt.datetime, Counter] = defaultdict(Counter)
-    for row in db.execute(stmt):
-        key = _floor(row[0], delta)
-        series = row[1] if dimension is not None else "events"
-        counts[key][series or "unknown"] += 1
+    bucket_expr = _bucket_index_expr(db, delta)
+
+    if bucket_expr is not None:
+        # Fast path: one row per (bucket, series) instead of one per event.
+        group_cols = [bucket_expr.label("bucket")]
+        if dimension is not None:
+            group_cols.append(dimension)
+        stmt = select(*group_cols, func.count().label("n")).group_by(*group_cols)
+        if since:
+            stmt = stmt.where(Event.ts >= since)
+        for row in db.execute(stmt):
+            key = _EPOCH + int(row[0]) * delta
+            series = row[1] if dimension is not None else "events"
+            counts[key][series or "unknown"] += int(row[-1])
+    else:
+        cols = [Event.ts] + ([dimension] if dimension is not None else [])
+        stmt = select(*cols)
+        if since:
+            stmt = stmt.where(Event.ts >= since)
+        for row in db.execute(stmt):
+            key = _floor(row[0], delta)
+            series = row[1] if dimension is not None else "events"
+            counts[key][series or "unknown"] += 1
 
     start = _floor(since or (min(counts) if counts else utcnow()), delta)
     end = _floor(utcnow(), delta)
