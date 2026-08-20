@@ -16,7 +16,7 @@ and a React dashboard.
 Where it's going next: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 > **✅ Proven in production.** Deployed on a public Azure VM, this stack has
-> captured genuine internet attacks from **163 sources across 38 countries** —
+> captured **over 56,000 events** of genuine internet attacks from **163 sources across 38 countries** —
 > emulated shells granted, attacker commands recorded, and **20 of 21 claimed
 > ATT&CK techniques (95%) backed by real alerts**. Live IoT botnets submitting
 > Mirai credentials, a full Redis module-load RCE, a multi-arch botnet CDN, and
