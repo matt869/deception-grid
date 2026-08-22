@@ -85,10 +85,40 @@ fetched. Static analysis only. Every indicator is defanged before it leaves the
 analyser, and there is a test asserting that at each layer it crosses — the
 function, the database row, and the JSON the browser receives.*
 
-### Campaign clustering · planned
-Group sources by behavioural similarity — command sequences, credential sets,
-timing, ASN — instead of by IP. Answers "is this the same operator from a new
-address?", which is the question an IP-keyed view structurally cannot answer.
+### Campaign clustering · done
+
+Groups sources by behavioural similarity — credentials actually tried, request
+paths, artefacts delivered, tooling tags — instead of by IP.
+
+```
+python -m pipeline.analysis.campaigns
+python -m pipeline.analysis.campaigns --threshold 0.45 --json
+GET /api/campaigns?threshold=0.35
+```
+
+Weighted Jaccard overlap across facets, joined into groups by union-find. Three
+choices worth knowing about:
+
+- **Interpretable over clever.** Set overlap, not an embedding. Every campaign
+  reports the credentials, paths and payload hashes its members actually share,
+  so an analyst can inspect the evidence and disagree. Those pairs are read
+  from events, never assembled from the attacker aggregate's separate username
+  and password lists — citing a credential nobody tried would make the evidence
+  worthless while still looking checkable.
+- **Connected components, not k-means.** Nobody knows how many campaigns are in
+  a capture, and requiring a `k` up front invents an answer.
+- **Ambient behaviour is weighted near zero.** Everything on the internet
+  touches SSH and tries `root`. Weight that wrongly and you get one cluster
+  containing the whole capture — the failure mode the tests are most focused on.
+
+Sources with no discriminative behaviour are dropped rather than clustered: a
+connect-and-leave probe has nothing to compare, and grouping those would produce
+a "campaign" of every port scanner alive.
+
+**Still to do:** persistence. Clustering is computed per request because the
+grouping depends on a caller-chosen threshold, so a cached table would only be
+right for one setting. If it becomes a hot path it wants what `payloads` got —
+a derived table plus a rebuild command.
 
 ### Sigma rule support · planned
 The current YAML engine is good but bespoke. Supporting Sigma means importing

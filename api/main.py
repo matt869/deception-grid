@@ -24,7 +24,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import alerts, attackers, events, export, payloads, stats
+from api.routes import alerts, attackers, campaigns, events, export, payloads, stats
 from api.schemas import HealthOut
 
 log = logging.getLogger("api")
@@ -136,6 +136,7 @@ app.include_router(stats.router, prefix=api_prefix)
 app.include_router(attackers.router, prefix=api_prefix)
 app.include_router(alerts.router, prefix=api_prefix)
 app.include_router(payloads.router, prefix=api_prefix)
+app.include_router(campaigns.router, prefix=api_prefix)
 app.include_router(export.router, prefix=api_prefix)
 
 

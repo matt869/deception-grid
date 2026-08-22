@@ -250,6 +250,27 @@ class PayloadDetail(PayloadOut):
     sources: list[PayloadSource] = Field(default_factory=list)
 
 
+class CampaignOut(BaseModel):
+    """A group of sources judged to be one operator.
+
+    The ``shared_*`` fields are the evidence for the grouping, not decoration:
+    a cluster an analyst cannot inspect is a cluster they cannot disagree with.
+    """
+
+    size: int
+    members: list[str]
+    event_count: int = 0
+    cohesion: float = Field(description="Mean pairwise similarity within the campaign")
+    shared_credentials: list[str] = Field(default_factory=list)
+    shared_payloads: list[str] = Field(default_factory=list)
+    shared_paths: list[str] = Field(default_factory=list)
+    asns: list[int] = Field(default_factory=list)
+    countries: list[str] = Field(default_factory=list)
+    classifications: list[str] = Field(default_factory=list)
+    first_seen: dt.datetime | None = None
+    last_seen: dt.datetime | None = None
+
+
 class ArchRow(BaseModel):
     arch: str
     count: int
@@ -447,6 +468,7 @@ __all__ = [
     "PayloadDetail",
     "PayloadSource",
     "ArchRow",
+    "CampaignOut",
     "AlertOut",
     "AlertStatusUpdate",
     "RuleOut",
